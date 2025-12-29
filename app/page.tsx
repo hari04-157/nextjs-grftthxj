@@ -38,7 +38,6 @@ function ScrollyGame() {
   const [magicEffect, setMagicEffect] = useState('');
   const [shake, setShake] = useState(false);
   const [hasShield, setHasShield] = useState(false);
-  const [isGhost, setIsGhost] = useState(false);
   const [revived, setRevived] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [lastRunGems, setLastRunGems] = useState(0);
@@ -46,7 +45,7 @@ function ScrollyGame() {
 
   // --- BOOM FEATURE STATES ---
   const [hyperMode, setHyperMode] = useState(false);
-  const [hyperCharge, setHyperCharge] = useState(0); // 0 to 100
+  const [hyperCharge, setHyperCharge] = useState(0); 
 
   // --- SHOP STATE ---
   const [ownedSkins, setOwnedSkins] = useState<string[]>(['default']);
@@ -64,11 +63,13 @@ function ScrollyGame() {
     { name: "Silence", src: "" }
   ];
 
+  // UPDATED SKINS FOR VISIBILITY
   const SKINS = [
     { id: 'default', name: 'Orbital One', price: 0, color: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 100%)', shape: '50%' },
     { id: 'crimson', name: 'Crimson Ace', price: 50, color: 'linear-gradient(135deg, #ef4444, #991b1b)', shape: '0%' },
     { id: 'gold', name: 'Golden Cube', price: 200, color: 'linear-gradient(135deg, #facc15, #ca8a04)', shape: '4px' },
-    { id: 'neon', name: 'Neon Ghost', price: 500, color: 'transparent', border: '3px solid #d8b4fe', shape: '50%' },
+    // Made Neon skin slightly visible (glass effect) so it's not invisible without shield
+    { id: 'neon', name: 'Neon Ghost', price: 500, color: 'rgba(216, 180, 254, 0.15)', border: '3px solid #d8b4fe', shape: '50%' },
   ];
 
   const THEMES = [
@@ -80,7 +81,7 @@ function ScrollyGame() {
     { name: 'VOID', bg: 'radial-gradient(circle at center, #000000 0%, #1c1917 100%)', color: '#facc15' },
   ];
 
-  // --- REFS (GAME ENGINE) ---
+  // --- REFS ---
   const playerRef = useRef<HTMLDivElement>(null);
   const playerY = useRef(300);
   const playerX = useRef(0);
@@ -96,8 +97,6 @@ function ScrollyGame() {
   const diamondVal = useRef(0);
   const comboCount = useRef(0);
   const comboTimer = useRef<any>(null);
-  
-  // NEW REFS
   const hyperRef = useRef(0); 
   const isHyper = useRef(false);
   const particles = useRef<any[]>([]);
@@ -242,7 +241,6 @@ function ScrollyGame() {
     }
   };
 
-  // --- PARTICLE SYSTEM ---
   const spawnParticles = (x: number, y: number, color: string, count: number) => {
       for(let i=0; i<count; i++) {
           particles.current.push({
@@ -274,7 +272,6 @@ function ScrollyGame() {
     setHyperCharge(0);
     setHyperMode(false);
     setHasShield(false);
-    setIsGhost(false);
     setRevived(false);
     setHazards([]);
     setCoins([]);
@@ -292,7 +289,7 @@ function ScrollyGame() {
     setGameState('GAME_OVER');
     setShake(true);
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(400);
-    spawnParticles(playerX.current, playerY.current, '#ff4757', 30); 
+    spawnParticles(playerX.current, playerY.current, '#ff4757', 30);
     stopMusic();
     setLastRunGems(diamondVal.current); 
     saveProgress(scoreVal.current, diamondVal.current);
@@ -305,14 +302,12 @@ function ScrollyGame() {
     velocity.current += GRAVITY;
     playerY.current += velocity.current;
 
-    // Bounds Check
     if (playerY.current < ROOF_LIMIT) { playerY.current = ROOF_LIMIT; velocity.current = 1; }
     if (playerY.current > window.innerHeight) { gameOver(); return; }
 
     updatePlayerPosition();
 
     // --- LEVEL & DIFFICULTY ---
-    // Level logic preserved:
     const currentLevel = 1 + Math.floor(scoreVal.current / 100);
     if (currentLevel > levelRef.current) {
       levelRef.current = currentLevel; 
@@ -322,15 +317,14 @@ function ScrollyGame() {
       setTimeout(() => setMagicEffect(''), 2000);
     }
     
-    // Speed Logic
     let currentSpeed = START_SPEED + (currentLevel * 0.5);
     if (isHyper.current) currentSpeed *= 1.5; 
     if (currentSpeed > 30) currentSpeed = 30;
     speed.current = currentSpeed;
 
-    // --- HYPER MODE LOGIC ---
+    // --- HYPER MODE ---
     if(isHyper.current) {
-        hyperRef.current -= 0.5; // Drain
+        hyperRef.current -= 0.5;
         if(hyperRef.current <= 0) {
             isHyper.current = false;
             setHyperMode(false);
@@ -339,7 +333,7 @@ function ScrollyGame() {
         setHyperCharge(hyperRef.current);
     }
 
-    // --- PARTICLES UPDATE ---
+    // --- PARTICLES ---
     particles.current.forEach(p => {
         p.x += p.vx;
         p.y += p.vy;
@@ -348,18 +342,15 @@ function ScrollyGame() {
     particles.current = particles.current.filter(p => p.life > 0);
     setRenderParticles([...particles.current]); 
 
-    // --- SPAWN OBJECTS ---
+    // --- SPAWNER ---
     setHazards((prev) => {
       let next = prev
         .map((h) => ({ 
-            ...h, 
-            y: h.y + speed.current,
-            // Moving Walls Logic (Difficulty that isn't red circles)
+            ...h, y: h.y + speed.current,
             x: h.moving ? h.x + Math.sin(Date.now() / 200) * 5 : h.x,
         }))
         .filter((h) => h.y < window.innerHeight + 100);
       
-      // Collision
       if(!isHyper.current && Date.now() > ghostModeUntil.current) {
           for (const h of next) {
             if (
@@ -380,10 +371,9 @@ function ScrollyGame() {
           }
       }
 
-      // Spawner
       if (Date.now() - startTime.current > 800) {
         const last = next[next.length - 1];
-        if (!last || last.y > 120) { // Increased gap for smoothness
+        if (!last || last.y > 120) {
           let gap = 250 - (currentLevel * 8);
           if (gap < 120) gap = 120;
           
@@ -395,25 +385,11 @@ function ScrollyGame() {
           const leftW = window.innerWidth / 2 + newCenter - gap / 2;
           const rightW = window.innerWidth / 2 - newCenter - gap / 2;
           const rowId = Math.random();
-          
-          // Difficulty Types (NO MORE RED CIRCLES)
           const isMover = currentLevel > 5 && Math.random() > 0.8;
           
-          // Left Wall
-          next.push({ 
-              id: `L-${rowId}`, y: -100, height: 40, width: leftW, 
-              x: -(window.innerWidth / 2) + leftW / 2, gapCenter: newCenter, 
-              type: 'block', moving: isMover 
-          });
-          
-          // Right Wall
-          next.push({ 
-              id: `R-${rowId}`, y: -100, height: 40, width: rightW, 
-              x: window.innerWidth / 2 - rightW / 2, gapCenter: newCenter, 
-              type: 'block', moving: isMover 
-          });
+          next.push({ id: `L-${rowId}`, y: -100, height: 40, width: leftW, x: -(window.innerWidth / 2) + leftW / 2, gapCenter: newCenter, type: 'block', moving: isMover });
+          next.push({ id: `R-${rowId}`, y: -100, height: 40, width: rightW, x: window.innerWidth / 2 - rightW / 2, gapCenter: newCenter, type: 'block', moving: isMover });
 
-          // Coin Spawning
           const rand = Math.random();
           if (rand > 0.96 && !shieldActive.current)
             setCoins((curr) => [...curr, { id: `S-${rowId}`, y: -100, x: newCenter, type: 'shield' }]);
@@ -443,9 +419,8 @@ function ScrollyGame() {
             diamondVal.current += 1;
             spawnParticles(c.x, c.y, '#facc15', 10);
             
-            // Hyper Charge Accumulation (HARDER NOW)
             if(!isHyper.current) {
-                hyperRef.current += 5; // Reduced from 10 to 5. Needs 20 coins now.
+                hyperRef.current += 5; 
                 if(hyperRef.current >= 100) {
                     hyperRef.current = 100;
                     isHyper.current = true;
@@ -485,7 +460,7 @@ function ScrollyGame() {
         animation: shake ? 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both' : 'none',
       }}
     >
-      {/* --- SPEED LINES (BOOM EFFECT) --- */}
+      {/* --- SPEED LINES --- */}
       {(speed.current > 15 || hyperMode) && (
           <div className="speed-lines" style={{
               position: 'absolute', top:0, left:0, width:'100%', height:'100%',
@@ -494,8 +469,8 @@ function ScrollyGame() {
           }}/>
       )}
 
-      {/* --- UI HUD --- */}
-      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 60 }}><WalletMultiButton /></div>
+      {/* --- UI HUD - WALLET FIXED (zIndex 100) --- */}
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 100 }}><WalletMultiButton /></div>
       
       {/* HYPER BAR */}
       <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', width: '300px', height: '8px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px', zIndex: 55 }}>
@@ -515,8 +490,6 @@ function ScrollyGame() {
 
       {magicEffect && <div style={{ position: 'absolute', top: 200, width:'100%', textAlign:'center', fontSize: '2rem', fontWeight:'900', color: '#fff', textShadow: '0 0 20px #facc15', zIndex: 60, animation: 'pop 0.5s ease' }}>{magicEffect}</div>}
 
-      {/* --- RENDER GAME OBJECTS --- */}
-      
       {/* PARTICLES */}
       {renderParticles.map(p => (
           <div key={p.id} style={{
@@ -526,9 +499,16 @@ function ScrollyGame() {
           }}/>
       ))}
 
-      {/* PLAYER */}
+      {/* --- PLAYER WITH DYNAMIC SKIN EFFECTS --- */}
       <div ref={playerRef} style={{ position: 'absolute', top: 0, left: '50%', marginLeft: -PLAYER_SIZE / 2, width: PLAYER_SIZE, height: PLAYER_SIZE, zIndex: 20 }}>
-         <div style={{ width: '100%', height: '100%', borderRadius: activeSkin.shape, background: hyperMode ? '#fff' : activeSkin.color, boxShadow: hyperMode ? '0 0 20px #ff00ff' : '0 0 10px rgba(0,0,0,0.5)' }} />
+         
+         {/* DYNAMIC EFFECTS */}
+         {equippedSkin === 'gold' && <div style={{ position:'absolute', top: '10%', left:'-10%', width:'120%', height:'120%', background:'radial-gradient(circle, rgba(255,200,0,0.8), transparent)', filter:'blur(4px)', animation:'flame 0.1s infinite', zIndex:-1 }} />}
+         {equippedSkin === 'neon' && <div style={{ position:'absolute', top: '20%', left:'-10%', width:'120%', height:'120%', background:'rgba(0,0,0,0.8)', filter:'blur(6px)', borderRadius:'50%', animation:'fog 2s infinite linear', zIndex:-1 }} />}
+         {equippedSkin === 'crimson' && <div style={{ position:'absolute', top: 0, left:0, width:'100%', height:'100%', border:'2px solid red', borderRadius:'50%', animation:'pulse 0.5s infinite', zIndex:-1 }} />}
+         {equippedSkin === 'default' && <div style={{ position:'absolute', bottom: '-20%', left:'20%', width:'60%', height:'40%', background:'linear-gradient(to bottom, #3b82f6, transparent)', filter:'blur(2px)', zIndex:-1 }} />}
+
+         <div style={{ width: '100%', height: '100%', borderRadius: activeSkin.shape, background: hyperMode ? '#fff' : activeSkin.color, boxShadow: hyperMode ? '0 0 20px #ff00ff' : '0 0 10px rgba(0,0,0,0.5)', border: activeSkin.border || 'none' }} />
          {hasShield && <div style={{ position: 'absolute', top: -8, left: -8, width: PLAYER_SIZE + 16, height: PLAYER_SIZE + 16, borderRadius: '50%', border: '2px solid #60a5fa', animation: 'spin 3s infinite linear' }} />}
       </div>
 
@@ -617,6 +597,9 @@ function ScrollyGame() {
         @keyframes pop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
         @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
         @keyframes speed { 0% { transform: translateY(0); } 100% { transform: translateY(100px); } }
+        @keyframes flame { 0% { opacity: 0.8; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.9); } 100% { opacity: 0.8; transform: scale(1); } }
+        @keyframes fog { 0% { transform: translateY(0) scale(1); opacity: 0.6; } 100% { transform: translateY(20px) scale(1.2); opacity: 0; } }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.3); opacity: 0; } }
       `}</style>
     </div>
   );
