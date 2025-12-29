@@ -17,7 +17,7 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import '@solana/wallet-adapter-react-ui/styles.css';
 
-// --- STEP 2: DYNAMICALLY IMPORT THE WALLET BUTTON (DISABLES SSR) ---
+// --- DYNAMIC IMPORT FOR WALLET BUTTON ---
 const WalletMultiButton = dynamic(
   async () =>
     (await import('@solana/wallet-adapter-react-ui')).WalletMultiButton,
@@ -42,6 +42,7 @@ function ScrollyGame() {
   const [isGhost, setIsGhost] = useState(false);
   const [revived, setRevived] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [lastRunGems, setLastRunGems] = useState(0); // FIX: Store gems for Game Over screen
 
   // --- SHOP STATE ---
   const [ownedSkins, setOwnedSkins] = useState<string[]>(['default']);
@@ -114,30 +115,30 @@ function ScrollyGame() {
   ];
 
   // --- REFS ---
-  const playerRef = useRef<HTMLDivElement>(null); // DIRECT DOM ACCESS (NO LAG)
+  const playerRef = useRef<HTMLDivElement>(null);
   const playerY = useRef(300);
   const playerX = useRef(0);
   const velocity = useRef(0);
   const scoreVal = useRef(0);
   const shieldActive = useRef(false);
   const ghostModeUntil = useRef(0);
-  const speed = useRef(6); // Default speed
+  const speed = useRef(6);
   const startTime = useRef(0);
   const requestRef = useRef<any>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const diamondVal = useRef(0);
 
-  // --- TUNING (OPTIMIZED FOR MOBILE) ---
-  const START_SPEED = 6; // Faster start
+  // --- TUNING ---
+  const START_SPEED = 6;
   const SPEED_INC = 0.3;
   const POINTS_PER_LEVEL = 100;
   const REVIVE_COST = 20;
   const currentTheme = THEMES[Math.min(level - 1, 5)];
-  const GRAVITY = 0.7; // Snappier gravity
-  const JUMP = -9.5;   // Higher jump
+  const GRAVITY = 0.7;
+  const JUMP = -9.5;
   const PLAYER_SIZE = 28;
   const ROOF_LIMIT = 50;
-  const HIT_MARGIN = 12; // More forgiving hitboxes
+  const HIT_MARGIN = 12;
 
   // --- SAVE SYSTEM ---
   useEffect(() => {
@@ -216,7 +217,6 @@ function ScrollyGame() {
   };
 
   // --- RENDER STATE ---
-  // Note: player render state (renderY/renderX) is removed for performance
   const [hazards, setHazards] = useState<any[]>([]);
   const [coins, setCoins] = useState<any[]>([]);
   const [trail, setTrail] = useState<any[]>([]);
@@ -229,15 +229,12 @@ function ScrollyGame() {
       if (e.key === 'ArrowRight') playerX.current += 40;
       if (e.code === 'Space' || e.key === 'ArrowUp') handleJump(e);
       if (e.key === 'Escape' || e.key === 'p') togglePause();
-      
-      // Update DOM directly for zero lag
       updatePlayerPosition();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState]);
 
-  // Helper to sync Ref with DOM directly (Optimized)
   const updatePlayerPosition = () => {
      if (playerX.current < -window.innerWidth / 2) playerX.current = -window.innerWidth / 2;
      if (playerX.current > window.innerWidth / 2) playerX.current = window.innerWidth / 2;
@@ -270,7 +267,6 @@ function ScrollyGame() {
     if (clientX) {
       const centerX = window.innerWidth / 2;
       playerX.current = clientX - centerX;
-      // Direct update for smoothness
       updatePlayerPosition();
     }
   };
@@ -295,6 +291,7 @@ function ScrollyGame() {
     setScore(0);
     setDiamonds(0);
     diamondVal.current = 0;
+    setLastRunGems(0); // Reset last run
     setLevel(1);
     setMagicEffect('');
     updatePlayerPosition();
@@ -335,6 +332,10 @@ function ScrollyGame() {
     setShake(true);
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(400);
     stopMusic();
+    
+    // FIX: Save current run gems BEFORE resetting
+    setLastRunGems(diamondVal.current); 
+    
     saveProgress(scoreVal.current, diamondVal.current);
     setDiamonds(0);
     diamondVal.current = 0;
@@ -344,11 +345,9 @@ function ScrollyGame() {
   const gameLoop = () => {
     if (gameState !== 'PLAYING') return;
     
-    // 1. PHYSICS UPDATE
     velocity.current += GRAVITY;
     playerY.current += velocity.current;
 
-    // 2. BOUNDARY CHECKS
     if (playerY.current < ROOF_LIMIT) {
       playerY.current = ROOF_LIMIT;
       updatePlayerPosition();
@@ -360,11 +359,8 @@ function ScrollyGame() {
       return;
     }
 
-    // 3. DIRECT DOM UPDATE (PERFORMANCE MAGIC)
-    // This replaces setRenderY/X to prevent React re-renders
     updatePlayerPosition();
 
-    // 4. LEVEL & SPEED
     const currentLevel = 1 + Math.floor(scoreVal.current / POINTS_PER_LEVEL);
     if (currentLevel !== level) {
       setLevel(currentLevel);
@@ -378,12 +374,11 @@ function ScrollyGame() {
       }
     }
     speed.current = START_SPEED + currentLevel * SPEED_INC;
-    if (speed.current > 25) speed.current = 25; // Cap max speed
+    if (speed.current > 25) speed.current = 25;
     
     if (Date.now() < ghostModeUntil.current) setIsGhost(true);
     else setIsGhost(false);
 
-    // 5. TRAIL LOGIC (Throttled)
     if (scoreVal.current % 5 === 0) {
         setTrail((prev) => {
         const newTrail = [...prev, { x: playerX.current, y: playerY.current, id: Math.random() }];
@@ -392,7 +387,6 @@ function ScrollyGame() {
         });
     }
 
-    // 6. HAZARDS & COINS
     setHazards((prev) => {
       let next = prev
         .map((h) => ({ ...h, y: h.y + speed.current }))
@@ -636,7 +630,7 @@ function ScrollyGame() {
           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: 5 }}>Score: {score}</div>
           <div style={{ fontSize: '1rem', color: '#94a3b8', marginBottom: 25 }}>High Score: {topScores[0]?.score > score ? topScores[0].score : score}</div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
-            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: 10 }}>💎 +{diamonds} Gems</div>
+            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: 10 }}>💎 +{lastRunGems} Gems</div>
           </div>
           {!revived && totalDiamonds >= REVIVE_COST ? (
             <button onClick={reviveGame} style={{ display: 'block', width: '100%', padding: '15px', marginBottom: 15, fontSize: '1.1rem', fontWeight: 'bold', borderRadius: '15px', border: 'none', background: 'linear-gradient(90deg, #8b5cf6, #d946ef)', color: 'white', cursor: 'pointer', boxShadow: '0 5px 15px rgba(217, 70, 239, 0.4)' }}>💖 REVIVE ({REVIVE_COST} Gems)</button>
@@ -653,7 +647,7 @@ function ScrollyGame() {
         <div key={t.id} style={{ position: 'absolute', top: t.y, left: '50%', marginLeft: t.x - PLAYER_SIZE / 2, width: PLAYER_SIZE, height: PLAYER_SIZE, borderRadius: activeSkin.shape, background: hasShield ? '#60a5fa' : activeSkin.id === 'neon' ? 'transparent' : activeSkin.color, border: activeSkin.border || 'none', opacity: (i / 8) * 0.2, pointerEvents: 'none', transform: `scale(${i / 6})` }} />
       ))}
 
-      {/* PLAYER RENDERED DIRECTLY VIA REF FOR PERFORMANCE */}
+      {/* PLAYER RENDERED DIRECTLY VIA REF FOR PERFORMANCE - FIXED SHIELD LAG */}
       <div
         ref={playerRef}
         style={{
@@ -663,21 +657,37 @@ function ScrollyGame() {
           marginLeft: -PLAYER_SIZE / 2, // Centering fix
           width: PLAYER_SIZE,
           height: PLAYER_SIZE,
-          borderRadius: activeSkin.shape,
-          background: activeSkin.color,
-          border: activeSkin.border || 'none',
-          boxShadow: hasShield ? '0 0 30px #3b82f6' : '0 0 30px rgba(255,255,255,0.5)',
           zIndex: 20,
           opacity: isGhost ? 0.5 : 1,
           animation: isGhost ? 'flash 0.1s infinite' : 'none',
           // Initial transform to avoid jump
           transform: `translate(0px, 300px)` 
         }}
-      />
-      
-      {hasShield && (
-        <div style={{ position: 'absolute', top: 0, left: '50%', transform:`translate(${playerX.current - PLAYER_SIZE/2 - 8}px, ${playerY.current - 8}px)`, width: PLAYER_SIZE + 16, height: PLAYER_SIZE + 16, borderRadius: '50%', border: '2px solid #60a5fa', opacity: 0.8, boxShadow: '0 0 20px #60a5fa', animation: 'spin 3s infinite linear' }} />
-      )}
+      >
+         <div style={{ 
+             width: '100%', 
+             height: '100%', 
+             borderRadius: activeSkin.shape, 
+             background: activeSkin.color, 
+             border: activeSkin.border || 'none',
+             boxShadow: hasShield ? '0 0 30px #3b82f6' : '0 0 30px rgba(255,255,255,0.5)'
+         }} />
+         
+         {hasShield && (
+            <div style={{ 
+                position: 'absolute', 
+                top: -8, 
+                left: -8, 
+                width: PLAYER_SIZE + 16, 
+                height: PLAYER_SIZE + 16, 
+                borderRadius: '50%', 
+                border: '2px solid #60a5fa', 
+                opacity: 0.8, 
+                boxShadow: '0 0 20px #60a5fa', 
+                animation: 'spin 3s infinite linear' 
+            }} />
+         )}
+      </div>
 
       {hazards.map((h) => (
         <div key={h.id} style={{ position: 'absolute', top: h.y, left: '50%', marginLeft: h.x - h.width / 2, width: h.width, height: h.height, background: `linear-gradient(135deg, ${currentTheme.color} 0%, rgba(255,255,255,0.2) 100%)`, borderRadius: h.obstacleType === 'WALL' ? '4px' : h.obstacleType === 'SHARD' ? h.id.includes('L') ? '0 50% 50% 0' : '50% 0 0 50%' : '50%', border: h.obstacleType === 'SAW' ? `2px dashed ${currentTheme.color}` : 'none', boxShadow: `0 0 15px ${currentTheme.color}`, animation: h.obstacleType === 'SAW' ? 'spin 1s infinite linear' : 'none' }} />
