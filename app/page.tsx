@@ -29,7 +29,7 @@ function ScrollyGame() {
   const { publicKey } = useWallet();
 
   // --- STATE ---
-  const [gameState, setGameState] = useState('START');
+  const [gameState, setGameState] = useState('START'); // START, PLAYING, PAUSED, GAME_OVER, SHOP, MUSIC
   const [score, setScore] = useState(0);
   const [diamonds, setDiamonds] = useState(0);
   const [totalDiamonds, setTotalDiamonds] = useState(0);
@@ -37,19 +37,29 @@ function ScrollyGame() {
   const [topScores, setTopScores] = useState<{ addr: string; score: number }[]>([]);
   const [magicEffect, setMagicEffect] = useState('');
   const [shake, setShake] = useState(false);
-  const [songName, setSongName] = useState('');
   const [hasShield, setHasShield] = useState(false);
   const [isGhost, setIsGhost] = useState(false);
   const [revived, setRevived] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [lastRunGems, setLastRunGems] = useState(0);
-  const [comboText, setComboText] = useState(''); // NEW: Visual combo text
+  const [comboText, setComboText] = useState('');
 
   // --- SHOP STATE ---
   const [ownedSkins, setOwnedSkins] = useState<string[]>(['default']);
   const [equippedSkin, setEquippedSkin] = useState('default');
+  const [shopDetailItem, setShopDetailItem] = useState<any>(null); // NEW: For Detail View
+
+  // --- MUSIC STATE ---
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // --- CONFIG ---
+  const MUSIC_TRACKS = [
+    { name: "Our Song", src: "/our-song.wav" },
+    { name: "Monkey Business", src: "/monkey.aac" },
+    { name: "Silence", src: "" }
+  ];
+
   const SKINS = [
     {
       id: 'default',
@@ -83,36 +93,12 @@ function ScrollyGame() {
   ];
 
   const THEMES = [
-    {
-      name: 'CLASSIC',
-      bg: 'linear-gradient(180deg, #0f172a 0%, #334155 100%)',
-      color: '#cbd5e1',
-    },
-    {
-      name: 'OCEAN',
-      bg: 'radial-gradient(circle at center, #1e3a8a 0%, #020617 100%)',
-      color: '#3b82f6',
-    },
-    {
-      name: 'TOXIC',
-      bg: 'linear-gradient(180deg, #064e3b 0%, #022c22 100%)',
-      color: '#4ade80',
-    },
-    {
-      name: 'MAGMA',
-      bg: 'linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%)',
-      color: '#f87171',
-    },
-    {
-      name: 'CYBER',
-      bg: 'radial-gradient(circle at center, #581c87 0%, #2e1065 100%)',
-      color: '#d8b4fe',
-    },
-    {
-      name: 'VOID',
-      bg: 'radial-gradient(circle at center, #000000 0%, #1c1917 100%)',
-      color: '#facc15',
-    },
+    { name: 'CLASSIC', bg: 'linear-gradient(180deg, #0f172a 0%, #334155 100%)', color: '#cbd5e1' },
+    { name: 'OCEAN', bg: 'radial-gradient(circle at center, #1e3a8a 0%, #020617 100%)', color: '#3b82f6' },
+    { name: 'TOXIC', bg: 'linear-gradient(180deg, #064e3b 0%, #022c22 100%)', color: '#4ade80' },
+    { name: 'MAGMA', bg: 'linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%)', color: '#f87171' },
+    { name: 'CYBER', bg: 'radial-gradient(circle at center, #581c87 0%, #2e1065 100%)', color: '#d8b4fe' },
+    { name: 'VOID', bg: 'radial-gradient(circle at center, #000000 0%, #1c1917 100%)', color: '#facc15' },
   ];
 
   // --- REFS ---
@@ -121,7 +107,7 @@ function ScrollyGame() {
   const playerX = useRef(0);
   const velocity = useRef(0);
   const scoreVal = useRef(0);
-  const levelRef = useRef(1); // NEW: Fix for Zone Text Spam
+  const levelRef = useRef(1);
   const shieldActive = useRef(false);
   const ghostModeUntil = useRef(0);
   const speed = useRef(6);
@@ -129,12 +115,12 @@ function ScrollyGame() {
   const requestRef = useRef<any>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const diamondVal = useRef(0);
-  const comboCount = useRef(0); // NEW: Track combos
+  const comboCount = useRef(0);
   const comboTimer = useRef<any>(null);
 
   // --- TUNING ---
   const START_SPEED = 6;
-  const SPEED_INC = 0.5; // INCREASED DIFFICULTY (was 0.3)
+  const SPEED_INC = 0.5;
   const POINTS_PER_LEVEL = 100;
   const REVIVE_COST = 20;
   const currentTheme = THEMES[Math.min(level - 1, 5)];
@@ -155,6 +141,10 @@ function ScrollyGame() {
       setOwnedSkins(savedSkins);
       const savedEquip = localStorage.getItem('scrollyEquipped') || 'default';
       setEquippedSkin(savedEquip);
+      
+      // Initialize Audio
+      musicRef.current = new Audio(MUSIC_TRACKS[0].src);
+      musicRef.current.loop = true;
     }
   }, []);
 
@@ -174,51 +164,63 @@ function ScrollyGame() {
     localStorage.setItem('scrollyGems', newTotalGems.toString());
   };
 
-  const buySkin = (skinId: string, price: number) => {
-    if (totalDiamonds >= price && !ownedSkins.includes(skinId)) {
-      const newTotal = totalDiamonds - price;
-      setTotalDiamonds(newTotal);
-      localStorage.setItem('scrollyGems', newTotal.toString());
-      const newOwned = [...ownedSkins, skinId];
-      setOwnedSkins(newOwned);
-      localStorage.setItem('scrollySkins', JSON.stringify(newOwned));
-      setEquippedSkin(skinId);
-      localStorage.setItem('scrollyEquipped', skinId);
-    } else if (ownedSkins.includes(skinId)) {
-      setEquippedSkin(skinId);
-      localStorage.setItem('scrollyEquipped', skinId);
-    }
+  const selectSkin = (skin: any) => {
+     if(ownedSkins.includes(skin.id)) {
+         setEquippedSkin(skin.id);
+         localStorage.setItem('scrollyEquipped', skin.id);
+     } else {
+         // Attempt purchase
+         if(totalDiamonds >= skin.price) {
+             const newTotal = totalDiamonds - skin.price;
+             setTotalDiamonds(newTotal);
+             localStorage.setItem('scrollyGems', newTotal.toString());
+             
+             const newOwned = [...ownedSkins, skin.id];
+             setOwnedSkins(newOwned);
+             localStorage.setItem('scrollySkins', JSON.stringify(newOwned));
+             
+             setEquippedSkin(skin.id);
+             localStorage.setItem('scrollyEquipped', skin.id);
+         } else {
+             alert("Not enough gems!");
+         }
+     }
   };
 
-  // --- AUDIO (FIXED) ---
-  const handleFileUpload = (event: any) => {
-    event.stopPropagation(); // BUG FIX: Prevent click from bubbling to game controls
-    const file = event.target.files[0];
-    if (file) {
-      const fileUrl = URL.createObjectURL(file);
-      const audio = new Audio(fileUrl);
-      audio.loop = true;
-      audio.volume = 0.5;
-      musicRef.current = audio;
-      setSongName(file.name);
-      // Removed direct play call here to ensure user must click Play/Resume
-    }
+  // --- AUDIO LOGIC ---
+  const changeTrack = (index: number) => {
+      setCurrentTrackIndex(index);
+      if(musicRef.current) {
+          musicRef.current.src = MUSIC_TRACKS[index].src;
+          if(MUSIC_TRACKS[index].src !== "") {
+              musicRef.current.play().catch(e => console.log("Audio play error:", e));
+              setIsPlaying(true);
+          } else {
+              musicRef.current.pause();
+              setIsPlaying(false);
+          }
+      }
   };
 
   const playMusic = () => {
-    if (musicRef.current) {
-      musicRef.current.currentTime = 0;
+    if (musicRef.current && MUSIC_TRACKS[currentTrackIndex].src !== "") {
       musicRef.current.play().catch(() => {});
+      setIsPlaying(true);
     }
   };
 
   const pauseMusic = () => {
-    if (musicRef.current) musicRef.current.pause();
+    if (musicRef.current) {
+        musicRef.current.pause();
+        setIsPlaying(false);
+    }
   };
+
   const stopMusic = () => {
     if (musicRef.current) {
       musicRef.current.pause();
       musicRef.current.currentTime = 0;
+      setIsPlaying(false);
     }
   };
 
@@ -246,7 +248,6 @@ function ScrollyGame() {
       if (playerX.current > window.innerWidth / 2) playerX.current = window.innerWidth / 2;
       
       if (playerRef.current) {
-         // NEW: FUN - Rotate player based on velocity (tilt effect)
          const rotation = velocity.current * 2; 
          playerRef.current.style.transform = `translate(${playerX.current}px, ${playerY.current}px) rotate(${rotation}deg)`;
       }
@@ -290,8 +291,8 @@ function ScrollyGame() {
     startTime.current = Date.now();
     shieldActive.current = false;
     ghostModeUntil.current = 0;
-    levelRef.current = 1; // Reset ref level
-    comboCount.current = 0; // Reset combo
+    levelRef.current = 1; 
+    comboCount.current = 0; 
     setHasShield(false);
     setIsGhost(false);
     setRevived(false);
@@ -334,7 +335,7 @@ function ScrollyGame() {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     } else if (gameState === 'PAUSED') {
       setGameState('PLAYING');
-      if (musicRef.current) musicRef.current.play();
+      playMusic();
     }
   };
 
@@ -369,18 +370,15 @@ function ScrollyGame() {
 
     updatePlayerPosition();
 
-    // --- LEVEL LOGIC FIX: Using Ref to prevent text spam ---
+    // --- LEVEL LOGIC ---
     const currentLevel = 1 + Math.floor(scoreVal.current / POINTS_PER_LEVEL);
     
-    // Only trigger if the CALCULATED level is higher than the STORED REF level
     if (currentLevel > levelRef.current) {
-      levelRef.current = currentLevel; // Update Ref immediately
-      setLevel(currentLevel); // Update State for UI
+      levelRef.current = currentLevel; 
+      setLevel(currentLevel); 
       
       let zoneName = currentLevel <= 6 ? 'CLASSIC ZONE' : currentLevel <= 12 ? 'CRYSTAL ZONE' : currentLevel <= 18 ? 'CYBER ZONE' : 'THE VOID';
       setMagicEffect(zoneName);
-      
-      // Clear effect after 3 seconds
       setTimeout(() => setMagicEffect(''), 3000);
       
       if (musicRef.current) {
@@ -486,7 +484,7 @@ function ScrollyGame() {
             setDiamonds((d) => d + 1);
             diamondVal.current += 1;
             
-            // --- NEW: COMBO LOGIC ---
+            // --- COMBO LOGIC ---
             comboCount.current += 1;
             if (comboCount.current > 1) {
                 setComboText(`COMBO x${comboCount.current}!`);
@@ -607,25 +605,67 @@ function ScrollyGame() {
         </div>
       )}
 
-      {/* SHOP SCREEN */}
+      {/* MUSIC MENU */}
+      {gameState === 'MUSIC' && (
+         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.98)', zIndex: 85, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+             <h1 style={{ color: '#d8b4fe', marginBottom: 20 }}>DJ STATION</h1>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '80%', maxWidth: '400px' }}>
+                 {MUSIC_TRACKS.map((track, i) => (
+                     <div key={i} onClick={() => changeTrack(i)} style={{ padding: 15, background: currentTrackIndex === i ? '#d8b4fe' : 'rgba(255,255,255,0.1)', color: currentTrackIndex === i ? '#000' : '#fff', borderRadius: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+                         <span>{track.name}</span>
+                         <span>{currentTrackIndex === i && isPlaying ? '🔊' : ''}</span>
+                     </div>
+                 ))}
+             </div>
+             <button onClick={() => setGameState('START')} style={{ marginTop: 30, padding: '12px 30px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: 20, cursor: 'pointer' }}>Close</button>
+         </div>
+      )}
+
+      {/* SHOP SCREEN WITH DETAIL VIEW */}
       {gameState === 'SHOP' && (
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.98)', zIndex: 80, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
-          <h1 style={{ color: '#facc15', marginBottom: 10 }}>SKIN SHOP</h1>
-          <div style={{ marginBottom: 30, fontSize: '1.5rem', fontWeight: 'bold' }}>💎 {totalDiamonds}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20, maxWidth: 600 }}>
-            {SKINS.map((skin) => {
-              const isOwned = ownedSkins.includes(skin.id);
-              const isEquipped = equippedSkin === skin.id;
-              return (
-                <div key={skin.id} onClick={() => buySkin(skin.id, skin.price)} style={{ background: 'rgba(255,255,255,0.05)', padding: 20, borderRadius: 15, border: isEquipped ? '2px solid #4ade80' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', width: 140, textAlign: 'center', opacity: !isOwned && totalDiamonds < skin.price ? 0.5 : 1, transition: 'all 0.2s' }}>
-                  <div style={{ width: 40, height: 40, margin: '0 auto 15px auto', background: skin.color, borderRadius: skin.shape, border: skin.border || 'none' }} />
-                  <div style={{ fontWeight: 'bold', marginBottom: 5 }}>{skin.name}</div>
-                  {isEquipped ? <div style={{ color: '#4ade80', fontSize: '0.9rem' }}>EQUIPPED</div> : isOwned ? <div style={{ color: '#fff', fontSize: '0.9rem' }}>OWNED</div> : <div style={{ color: '#facc15' }}>💎 {skin.price}</div>}
+          
+          {/* VIEW 1: GRID */}
+          {!shopDetailItem && (
+            <>
+                <h1 style={{ color: '#facc15', marginBottom: 10 }}>SKIN SHOP</h1>
+                <div style={{ marginBottom: 30, fontSize: '1.5rem', fontWeight: 'bold' }}>💎 {totalDiamonds}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20, maxWidth: 600 }}>
+                    {SKINS.map((skin) => {
+                    const isOwned = ownedSkins.includes(skin.id);
+                    const isEquipped = equippedSkin === skin.id;
+                    return (
+                        <div key={skin.id} onClick={() => setShopDetailItem(skin)} style={{ background: 'rgba(255,255,255,0.05)', padding: 20, borderRadius: 15, border: isEquipped ? '2px solid #4ade80' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', width: 140, textAlign: 'center', opacity: !isOwned && totalDiamonds < skin.price ? 0.5 : 1, transition: 'all 0.2s' }}>
+                        <div style={{ width: 40, height: 40, margin: '0 auto 15px auto', background: skin.color, borderRadius: skin.shape, border: skin.border || 'none' }} />
+                        <div style={{ fontWeight: 'bold', marginBottom: 5 }}>{skin.name}</div>
+                        {isEquipped ? <div style={{ color: '#4ade80', fontSize: '0.9rem' }}>EQUIPPED</div> : isOwned ? <div style={{ color: '#fff', fontSize: '0.9rem' }}>OWNED</div> : <div style={{ color: '#facc15' }}>💎 {skin.price}</div>}
+                        </div>
+                    );
+                    })}
                 </div>
-              );
-            })}
-          </div>
-          <button onClick={() => setGameState('START')} style={{ marginTop: 40, padding: '15px 40px', fontSize: '1.2rem', background: '#38BDF8', border: 'none', borderRadius: 30, color: '#0f172a', fontWeight: 'bold', cursor: 'pointer' }}>BACK TO MENU</button>
+                <button onClick={() => setGameState('START')} style={{ marginTop: 40, padding: '15px 40px', fontSize: '1.2rem', background: '#38BDF8', border: 'none', borderRadius: 30, color: '#0f172a', fontWeight: 'bold', cursor: 'pointer' }}>BACK TO MENU</button>
+            </>
+          )}
+
+          {/* VIEW 2: DETAILS */}
+          {shopDetailItem && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, animation: 'pop 0.2s' }}>
+                  <h2 style={{ fontSize: '2rem', color: '#fff' }}>{shopDetailItem.name}</h2>
+                  <div style={{ width: 150, height: 150, background: shopDetailItem.color, borderRadius: shopDetailItem.shape, border: shopDetailItem.border || 'none', boxShadow: '0 0 30px rgba(255,255,255,0.2)', margin: '20px 0' }} />
+                  
+                  {ownedSkins.includes(shopDetailItem.id) ? (
+                      equippedSkin === shopDetailItem.id ? (
+                          <button disabled style={{ padding: '15px 50px', fontSize: '1.2rem', background: '#4ade80', border: 'none', borderRadius: 10, color: '#004d00', fontWeight: 'bold', cursor: 'not-allowed' }}>EQUIPPED</button>
+                      ) : (
+                          <button onClick={() => selectSkin(shopDetailItem)} style={{ padding: '15px 50px', fontSize: '1.2rem', background: '#38BDF8', border: 'none', borderRadius: 10, color: '#002a3a', fontWeight: 'bold', cursor: 'pointer' }}>SELECT</button>
+                      )
+                  ) : (
+                      <button onClick={() => selectSkin(shopDetailItem)} style={{ padding: '15px 50px', fontSize: '1.2rem', background: '#facc15', border: 'none', borderRadius: 10, color: '#422006', fontWeight: 'bold', cursor: 'pointer' }}>BUY ({shopDetailItem.price} 💎)</button>
+                  )}
+
+                  <button onClick={() => setShopDetailItem(null)} style={{ marginTop: 10, padding: '10px 30px', background: 'transparent', border: '1px solid #777', color: '#ccc', borderRadius: 20, cursor: 'pointer' }}>GO BACK</button>
+              </div>
+          )}
         </div>
       )}
 
@@ -638,8 +678,9 @@ function ScrollyGame() {
             <button onClick={() => startGame()} style={{ background: 'linear-gradient(45deg, #facc15, #fbbf24)', border: 'none', padding: '20px 60px', fontSize: '1.8rem', fontWeight: 'bold', borderRadius: '50px', cursor: 'pointer', boxShadow: '0 10px 30px rgba(251, 191, 36, 0.4)', color: '#0f172a', transition: 'transform 0.1s' }}>PLAY</button>
           </div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 30 }}>
-            <button onClick={() => setGameState('SHOP')} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>🛒 SKIN SHOP</button>
-            <button onClick={() => setShowInstructions(!showInstructions)} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>❓ HOW TO PLAY</button>
+            <button onClick={() => { setShopDetailItem(null); setGameState('SHOP'); }} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>🛒 SKIN SHOP</button>
+            <button onClick={() => setGameState('MUSIC')} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>🎵 MUSIC</button>
+            <button onClick={() => setShowInstructions(!showInstructions)} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>❓ HELP</button>
           </div>
           {showInstructions && (
             <div style={{ background: 'rgba(255,255,255,0.1)', padding: 20, borderRadius: 15, maxWidth: 400, fontSize: '0.9rem', lineHeight: '1.5', marginBottom: 20 }}>
@@ -651,10 +692,6 @@ function ScrollyGame() {
           <div style={{ marginBottom: 20 }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#facc15', fontSize: '1rem' }}>🏆 LEADERBOARD</h3>
             {topScores.length === 0 ? <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>No scores recorded yet</p> : topScores.map((s, i) => <div key={i} style={{ fontSize: '1rem', opacity: 0.9 }}>#{i + 1}: {s.addr} — {s.score}</div>)}
-          </div>
-          <div style={{ opacity: 0.6, fontSize: '0.8rem', marginTop: 10 }}>
-            <label style={{ cursor: 'pointer', textDecoration: 'underline' }}>Click to add custom music (Optional)<input type="file" accept="audio/*" onChange={handleFileUpload} style={{ display: 'none' }} /></label>
-            {songName && <div style={{ color: '#4ade80' }}>🎵 {songName} Loaded</div>}
           </div>
         </div>
       )}
