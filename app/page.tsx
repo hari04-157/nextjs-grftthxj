@@ -97,13 +97,13 @@ function ScrollyGame() {
   const comboCount = useRef(0);
   const comboTimer = useRef<any>(null);
   
-  // NEW REFS FOR BOOM FEATURES
+  // NEW REFS
   const hyperRef = useRef(0); 
   const isHyper = useRef(false);
   const particles = useRef<any[]>([]);
 
   // --- TUNING ---
-  const START_SPEED = 7; // Slightly faster start for smoothness
+  const START_SPEED = 7;
   const GRAVITY = 0.6;
   const JUMP = -10;
   const PLAYER_SIZE = 30;
@@ -192,13 +192,13 @@ function ScrollyGame() {
   // --- RENDER STATE ---
   const [hazards, setHazards] = useState<any[]>([]);
   const [coins, setCoins] = useState<any[]>([]);
-  const [renderParticles, setRenderParticles] = useState<any[]>([]); // For React rendering
+  const [renderParticles, setRenderParticles] = useState<any[]>([]); 
 
   // --- CONTROLS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (gameState !== 'PLAYING') return;
-      if (e.key === 'ArrowLeft') playerX.current -= 45; // Smoother faster movement
+      if (e.key === 'ArrowLeft') playerX.current -= 45;
       if (e.key === 'ArrowRight') playerX.current += 45;
       if (e.code === 'Space' || e.key === 'ArrowUp') handleJump(e);
       if (e.key === 'Escape') setGameState(prev => prev === 'PLAYING' ? 'PAUSED' : 'PLAYING');
@@ -213,7 +213,6 @@ function ScrollyGame() {
       if (playerX.current > window.innerWidth / 2) playerX.current = window.innerWidth / 2;
       
       if (playerRef.current) {
-         // Add tilt for smoothness
          const tilt = velocity.current * 3; 
          playerRef.current.style.transform = `translate(${playerX.current}px, ${playerY.current}px) rotate(${tilt}deg)`;
       }
@@ -293,7 +292,7 @@ function ScrollyGame() {
     setGameState('GAME_OVER');
     setShake(true);
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(400);
-    spawnParticles(playerX.current, playerY.current, '#ff4757', 30); // Boom Effect
+    spawnParticles(playerX.current, playerY.current, '#ff4757', 30); 
     stopMusic();
     setLastRunGems(diamondVal.current); 
     saveProgress(scoreVal.current, diamondVal.current);
@@ -313,6 +312,7 @@ function ScrollyGame() {
     updatePlayerPosition();
 
     // --- LEVEL & DIFFICULTY ---
+    // Level logic preserved:
     const currentLevel = 1 + Math.floor(scoreVal.current / 100);
     if (currentLevel > levelRef.current) {
       levelRef.current = currentLevel; 
@@ -322,7 +322,7 @@ function ScrollyGame() {
       setTimeout(() => setMagicEffect(''), 2000);
     }
     
-    // Speed Logic (Including Hyper Mode)
+    // Speed Logic
     let currentSpeed = START_SPEED + (currentLevel * 0.5);
     if (isHyper.current) currentSpeed *= 1.5; 
     if (currentSpeed > 30) currentSpeed = 30;
@@ -330,7 +330,7 @@ function ScrollyGame() {
 
     // --- HYPER MODE LOGIC ---
     if(isHyper.current) {
-        hyperRef.current -= 0.5; // Drain bar
+        hyperRef.current -= 0.5; // Drain
         if(hyperRef.current <= 0) {
             isHyper.current = false;
             setHyperMode(false);
@@ -354,9 +354,8 @@ function ScrollyGame() {
         .map((h) => ({ 
             ...h, 
             y: h.y + speed.current,
-            // Moving Obstacles Logic
+            // Moving Walls Logic (Difficulty that isn't red circles)
             x: h.moving ? h.x + Math.sin(Date.now() / 200) * 5 : h.x,
-            rotation: h.spin ? (h.rotation || 0) + 10 : 0
         }))
         .filter((h) => h.y < window.innerHeight + 100);
       
@@ -397,38 +396,28 @@ function ScrollyGame() {
           const rightW = window.innerWidth / 2 - newCenter - gap / 2;
           const rowId = Math.random();
           
-          // Difficulty Types
-          const isSpinner = currentLevel > 3 && Math.random() > 0.7;
+          // Difficulty Types (NO MORE RED CIRCLES)
           const isMover = currentLevel > 5 && Math.random() > 0.8;
           
           // Left Wall
           next.push({ 
               id: `L-${rowId}`, y: -100, height: 40, width: leftW, 
               x: -(window.innerWidth / 2) + leftW / 2, gapCenter: newCenter, 
-              type: 'block', spin: false, moving: false 
+              type: 'block', moving: isMover 
           });
           
           // Right Wall
           next.push({ 
               id: `R-${rowId}`, y: -100, height: 40, width: rightW, 
               x: window.innerWidth / 2 - rightW / 2, gapCenter: newCenter, 
-              type: 'block', spin: false, moving: false 
+              type: 'block', moving: isMover 
           });
-
-          // Special Obstacle in middle
-          if (isSpinner) {
-               next.push({
-                   id: `S-${rowId}`, y: -100, height: 60, width: 60,
-                   x: newCenter, gapCenter: newCenter,
-                   type: 'saw', spin: true, moving: isMover
-               });
-          }
 
           // Coin Spawning
           const rand = Math.random();
           if (rand > 0.96 && !shieldActive.current)
             setCoins((curr) => [...curr, { id: `S-${rowId}`, y: -100, x: newCenter, type: 'shield' }]);
-          else if (!isSpinner)
+          else 
             setCoins((curr) => [...curr, { id: `C-${rowId}`, y: -100, x: newCenter, type: 'coin' }]);
           
           if (next.length % 10 === 0) setScore(s => s + 1);
@@ -454,9 +443,9 @@ function ScrollyGame() {
             diamondVal.current += 1;
             spawnParticles(c.x, c.y, '#facc15', 10);
             
-            // Hyper Charge Accumulation
+            // Hyper Charge Accumulation (HARDER NOW)
             if(!isHyper.current) {
-                hyperRef.current += 10;
+                hyperRef.current += 5; // Reduced from 10 to 5. Needs 20 coins now.
                 if(hyperRef.current >= 100) {
                     hyperRef.current = 100;
                     isHyper.current = true;
@@ -548,13 +537,10 @@ function ScrollyGame() {
         <div key={h.id} style={{ 
             position: 'absolute', top: h.y, left: '50%', marginLeft: h.x - h.width / 2, 
             width: h.width, height: h.height, 
-            background: h.type === 'saw' ? 'transparent' : 'linear-gradient(135deg, #cbd5e1 0%, #64748b 100%)',
-            borderRadius: h.type === 'saw' ? '50%' : '4px',
-            border: h.type === 'saw' ? '4px dashed #ef4444' : 'none',
-            transform: h.spin ? `rotate(${h.rotation}deg)` : 'none',
+            background: 'linear-gradient(135deg, #cbd5e1 0%, #64748b 100%)',
+            borderRadius: '4px',
             boxShadow: '0 5px 15px rgba(0,0,0,0.5)'
         }}>
-            {h.type === 'saw' && <div style={{width:'100%', height:'100%', background:'rgba(239, 68, 68, 0.3)', borderRadius:'50%'}} />}
         </div>
       ))}
 
