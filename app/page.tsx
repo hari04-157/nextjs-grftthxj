@@ -39,13 +39,13 @@ function ScrollyGame() {
   const [shake, setShake] = useState(false);
   const [hasShield, setHasShield] = useState(false);
   const [revived, setRevived] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
   const [lastRunGems, setLastRunGems] = useState(0);
-  const [comboText, setComboText] = useState('');
+  
+  const [levelNotification, setLevelNotification] = useState('');
 
-  // --- BOOM FEATURE STATES ---
-  const [hyperMode, setHyperMode] = useState(false);
-  const [hyperCharge, setHyperCharge] = useState(0); 
+  // --- NEW FEATURE STATES (MAGNET) ---
+  const [magnetMode, setMagnetMode] = useState(false);
+  const [energyCharge, setEnergyCharge] = useState(0); // 0 to 100
 
   // --- SHOP STATE ---
   const [ownedSkins, setOwnedSkins] = useState<string[]>(['default']);
@@ -68,17 +68,17 @@ function ScrollyGame() {
     { id: 'default', name: 'Orbital One', price: 0, color: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 100%)', shape: '50%' },
     { id: 'crimson', name: 'Crimson Ace', price: 50, color: 'linear-gradient(135deg, #ef4444, #991b1b)', shape: '0%' },
     { id: 'gold', name: 'Golden Cube', price: 200, color: 'linear-gradient(135deg, #facc15, #ca8a04)', shape: '4px' },
-    // Neon skin is now partially transparent to show effects better
     { id: 'neon', name: 'Neon Ghost', price: 500, color: 'rgba(216, 180, 254, 0.2)', border: '3px solid #d8b4fe', shape: '50%' },
   ];
 
+  // DISTINCT LEVEL THEMES
   const THEMES = [
-    { name: 'CLASSIC', bg: 'linear-gradient(180deg, #0f172a 0%, #334155 100%)', color: '#cbd5e1' },
-    { name: 'OCEAN', bg: 'radial-gradient(circle at center, #1e3a8a 0%, #020617 100%)', color: '#3b82f6' },
-    { name: 'TOXIC', bg: 'linear-gradient(180deg, #064e3b 0%, #022c22 100%)', color: '#4ade80' },
-    { name: 'MAGMA', bg: 'linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%)', color: '#f87171' },
-    { name: 'CYBER', bg: 'radial-gradient(circle at center, #581c87 0%, #2e1065 100%)', color: '#d8b4fe' },
-    { name: 'VOID', bg: 'radial-gradient(circle at center, #000000 0%, #1c1917 100%)', color: '#facc15' },
+    { name: 'SPACE START', bg: 'linear-gradient(180deg, #0f172a 0%, #334155 100%)', color: '#cbd5e1' },
+    { name: 'DEEP OCEAN', bg: 'radial-gradient(circle at center, #1e3a8a 0%, #020617 100%)', color: '#3b82f6' },
+    { name: 'TOXIC WASTELAND', bg: 'linear-gradient(180deg, #064e3b 0%, #022c22 100%)', color: '#4ade80' },
+    { name: 'MAGMA CORE', bg: 'linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%)', color: '#f87171' },
+    { name: 'CYBER CITY', bg: 'radial-gradient(circle at center, #581c87 0%, #2e1065 100%)', color: '#d8b4fe' },
+    { name: 'THE VOID', bg: 'radial-gradient(circle at center, #000000 0%, #1c1917 100%)', color: '#facc15' },
   ];
 
   // --- REFS ---
@@ -95,11 +95,11 @@ function ScrollyGame() {
   const requestRef = useRef<any>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const diamondVal = useRef(0);
-  const comboCount = useRef(0);
-  const comboTimer = useRef<any>(null);
-  const hyperRef = useRef(0); 
-  const isHyper = useRef(false);
   const particles = useRef<any[]>([]);
+
+  // REFS FOR MAGNET
+  const energyRef = useRef(0); 
+  const isMagnet = useRef(false);
 
   // --- TUNING ---
   const START_SPEED = 7;
@@ -107,6 +107,7 @@ function ScrollyGame() {
   const JUMP = -10;
   const PLAYER_SIZE = 30;
   const ROOF_LIMIT = 50;
+  const SCORE_PER_LEVEL = 100; 
 
   // --- SAVE SYSTEM ---
   useEffect(() => {
@@ -267,10 +268,10 @@ function ScrollyGame() {
     shieldActive.current = false;
     ghostModeUntil.current = 0;
     levelRef.current = 1; 
-    hyperRef.current = 0;
-    isHyper.current = false;
-    setHyperCharge(0);
-    setHyperMode(false);
+    energyRef.current = 0;
+    isMagnet.current = false;
+    setEnergyCharge(0);
+    setMagnetMode(false);
     setHasShield(false);
     setRevived(false);
     setHazards([]);
@@ -281,7 +282,7 @@ function ScrollyGame() {
     diamondVal.current = 0;
     setLevel(1);
     setMagicEffect('');
-    setComboText('');
+    setLevelNotification('');
     playMusic();
   };
 
@@ -307,30 +308,37 @@ function ScrollyGame() {
 
     updatePlayerPosition();
 
-    // --- LEVEL & DIFFICULTY ---
-    const currentLevel = 1 + Math.floor(scoreVal.current / 100);
+    // --- LEVEL & DIFFICULTY LOGIC ---
+    const currentLevel = 1 + Math.floor(scoreVal.current / SCORE_PER_LEVEL);
+    
     if (currentLevel > levelRef.current) {
       levelRef.current = currentLevel; 
       setLevel(currentLevel); 
-      let zoneName = currentLevel <= 5 ? 'CLASSIC ZONE' : currentLevel <= 10 ? 'DANGER ZONE' : 'HYPER SPACE';
-      setMagicEffect(zoneName);
-      setTimeout(() => setMagicEffect(''), 2000);
+      
+      const themeIndex = Math.min(currentLevel - 1, THEMES.length - 1);
+      const zoneName = THEMES[themeIndex].name;
+      
+      setLevelNotification(`LEVEL ${currentLevel}: ${zoneName}`);
+      setTimeout(() => setLevelNotification(''), 3000); 
+      
+      setMagicEffect('SPEED UP!');
+      setTimeout(() => setMagicEffect(''), 1500);
     }
     
+    // Normal speed progression
     let currentSpeed = START_SPEED + (currentLevel * 0.5);
-    if (isHyper.current) currentSpeed *= 1.5; 
     if (currentSpeed > 30) currentSpeed = 30;
     speed.current = currentSpeed;
 
-    // --- HYPER MODE ---
-    if(isHyper.current) {
-        hyperRef.current -= 0.5;
-        if(hyperRef.current <= 0) {
-            isHyper.current = false;
-            setHyperMode(false);
-            if(musicRef.current) musicRef.current.playbackRate = 1;
+    // --- MAGNET MODE ---
+    if(isMagnet.current) {
+        energyRef.current -= 0.3; // Drains over time
+        if(energyRef.current <= 0) {
+            isMagnet.current = false;
+            setMagnetMode(false);
+            setMagicEffect('');
         }
-        setHyperCharge(hyperRef.current);
+        setEnergyCharge(energyRef.current);
     }
 
     // --- PARTICLES ---
@@ -347,11 +355,11 @@ function ScrollyGame() {
       let next = prev
         .map((h) => ({ 
             ...h, y: h.y + speed.current,
-            // REMOVED MOVING WALL LOGIC HERE - WALLS ARE NOW STATIC
         }))
         .filter((h) => h.y < window.innerHeight + 100);
       
-      if(!isHyper.current && Date.now() > ghostModeUntil.current) {
+      // Check collision
+      if(Date.now() > ghostModeUntil.current) {
           for (const h of next) {
             if (
               Math.abs(playerY.current - h.y) < h.height / 2 + PLAYER_SIZE / 2 - 10 &&
@@ -386,7 +394,7 @@ function ScrollyGame() {
           const rightW = window.innerWidth / 2 - newCenter - gap / 2;
           const rowId = Math.random();
           
-          // SET MOVING TO FALSE FOR ALL WALLS
+          // STATIC WALLS (No moving)
           next.push({ id: `L-${rowId}`, y: -100, height: 40, width: leftW, x: -(window.innerWidth / 2) + leftW / 2, gapCenter: newCenter, type: 'block', moving: false });
           next.push({ id: `R-${rowId}`, y: -100, height: 40, width: rightW, x: window.innerWidth / 2 - rightW / 2, gapCenter: newCenter, type: 'block', moving: false });
 
@@ -403,7 +411,23 @@ function ScrollyGame() {
     });
 
     setCoins((prev) => {
-      let next = prev.map((c) => ({ ...c, y: c.y + speed.current })).filter((c) => c.y < window.innerHeight + 50 && !c.collected);
+      let next = prev.map((c) => {
+          // MAGNET LOGIC: Pull coins towards player if active
+          let newX = c.x;
+          let newY = c.y + speed.current;
+          
+          if (isMagnet.current && !c.collected) {
+              const dx = playerX.current - c.x;
+              const dy = playerY.current - c.y;
+              const distance = Math.sqrt(dx*dx + dy*dy);
+              if (distance < 400) { // Range
+                  newX += dx * 0.15; // Pull strength
+                  newY += dy * 0.15;
+              }
+          }
+          return { ...c, x: newX, y: newY };
+      }).filter((c) => c.y < window.innerHeight + 50 && !c.collected);
+
       next.forEach((c) => {
         const dist = Math.sqrt(Math.pow(playerX.current - c.x, 2) + Math.pow(playerY.current - c.y, 2));
         if (dist < 40) {
@@ -413,22 +437,22 @@ function ScrollyGame() {
             setHasShield(true);
             setMagicEffect('SHIELD EQUIPPED');
           } else {
-            scoreVal.current += isHyper.current ? 20 : 10;
+            scoreVal.current += 10;
             setScore(scoreVal.current);
             setDiamonds((d) => d + 1);
             diamondVal.current += 1;
             spawnParticles(c.x, c.y, '#facc15', 10);
             
-            if(!isHyper.current) {
-                hyperRef.current += 5; 
-                if(hyperRef.current >= 100) {
-                    hyperRef.current = 100;
-                    isHyper.current = true;
-                    setHyperMode(true);
-                    setMagicEffect('HYPER MODE ACTIVATED!');
-                    if(musicRef.current) musicRef.current.playbackRate = 1.2;
+            // CHARGE MAGNET
+            if(!isMagnet.current) {
+                energyRef.current += 5; // Needs 20 coins
+                if(energyRef.current >= 100) {
+                    energyRef.current = 100;
+                    isMagnet.current = true;
+                    setMagnetMode(true);
+                    setMagicEffect('COSMIC MAGNET!');
                 }
-                setHyperCharge(hyperRef.current);
+                setEnergyCharge(energyRef.current);
             }
           }
         }
@@ -445,6 +469,7 @@ function ScrollyGame() {
   }, [gameState]);
 
   const activeSkin = SKINS.find((s) => s.id === equippedSkin) || SKINS[0];
+  const currentTheme = THEMES[Math.min(level - 1, THEMES.length - 1)];
 
   return (
     <div
@@ -452,43 +477,61 @@ function ScrollyGame() {
       onTouchStart={handleJump} onTouchMove={handleMove}
       style={{
         width: '100vw', height: '100vh',
-        background: isHyper.current ? 'linear-gradient(180deg, #4c1d95 0%, #be185d 100%)' : THEMES[Math.min(level-1, 5)].bg,
+        background: currentTheme.bg,
         overflow: 'hidden', position: 'relative', cursor: 'none',
         fontFamily: '"Segoe UI", Roboto, sans-serif', textAlign: 'center',
         userSelect: 'none', touchAction: 'none', color: 'white',
-        transition: 'background 0.5s ease',
+        transition: 'background 2s ease',
         animation: shake ? 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both' : 'none',
       }}
     >
-      {/* --- SPEED LINES --- */}
-      {(speed.current > 15 || hyperMode) && (
-          <div className="speed-lines" style={{
-              position: 'absolute', top:0, left:0, width:'100%', height:'100%',
-              background: 'repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255,255,255,0.1) 50px, rgba(255,255,255,0.1) 52px)',
-              animation: 'speed 0.2s linear infinite', zIndex: 1
-          }}/>
-      )}
-
       {/* --- UI HUD - WALLET FIXED (zIndex 100) --- */}
-      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 100 }}><WalletMultiButton /></div>
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 100, display: 'flex', gap: 10, alignItems: 'center' }}>
+          {!publicKey && <div style={{ fontSize: '0.8rem', opacity: 0.7, marginRight: 5 }}>Connect wallet to save progress →</div>}
+          <WalletMultiButton />
+      </div>
       
-      {/* HYPER BAR */}
-      <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', width: '300px', height: '8px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px', zIndex: 55 }}>
-          <div style={{ 
-              width: `${hyperCharge}%`, height: '100%', 
-              background: hyperMode ? '#ff00ff' : '#facc15', 
-              boxShadow: hyperMode ? '0 0 10px #ff00ff' : 'none',
-              borderRadius: '4px', transition: 'width 0.1s linear' 
-          }} />
-          {hyperMode && <div style={{position:'absolute', top:10, width:'100%', fontSize:'0.8rem', color:'#ff00ff', fontWeight:'bold', textShadow:'0 0 5px black'}}>HYPER MODE</div>}
+      {/* ENERGY BAR (MAGNET) */}
+      <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', width: '300px', zIndex: 55, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {/* Level Progress */}
+          <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
+             <div style={{ width: `${(score % SCORE_PER_LEVEL)}%`, height: '100%', background: '#fff', borderRadius: '2px', transition: 'width 0.2s' }} />
+          </div>
+
+          {/* Energy Bar */}
+          <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px', overflow:'hidden' }}>
+              <div style={{ 
+                  width: `${energyCharge}%`, height: '100%', 
+                  background: magnetMode ? '#00f2ff' : '#facc15', 
+                  boxShadow: magnetMode ? '0 0 15px #00f2ff' : 'none',
+                  borderRadius: '4px', transition: 'width 0.1s linear' 
+              }} />
+          </div>
+          {magnetMode && <div style={{ fontSize:'0.9rem', color:'#00f2ff', fontWeight:'bold', textShadow:'0 0 5px black', animation:'pulse 0.5s infinite' }}>MAGNET ACTIVE</div>}
       </div>
 
-      <div style={{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', borderRadius: '30px', padding: '8px 20px', display: 'flex', gap: '20px', zIndex: 50, border: '1px solid rgba(255,255,255,0.15)' }}>
+      <div style={{ position: 'absolute', top: 110, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', borderRadius: '30px', padding: '8px 20px', display: 'flex', gap: '20px', zIndex: 50, border: '1px solid rgba(255,255,255,0.15)' }}>
         <div><span style={{ fontSize: '0.7rem', opacity: 0.7 }}>SCORE</span> <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{score}</span></div>
         <div><span style={{ fontSize: '1.2rem' }}>💎</span> <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#facc15' }}>{totalDiamonds + diamonds}</span></div>
       </div>
 
-      {magicEffect && <div style={{ position: 'absolute', top: 200, width:'100%', textAlign:'center', fontSize: '2rem', fontWeight:'900', color: '#fff', textShadow: '0 0 20px #facc15', zIndex: 60, animation: 'pop 0.5s ease' }}>{magicEffect}</div>}
+      {/* --- LEVEL NOTIFICATION --- */}
+      {levelNotification && (
+         <div style={{ 
+             position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', 
+             width: '100%', textAlign: 'center', zIndex: 90, animation: 'pop 0.5s ease-out' 
+         }}>
+             <h1 style={{ 
+                 fontSize: '3.5rem', fontWeight: '900', color: '#fff', 
+                 textShadow: '0 0 30px #000, 0 0 10px currentColor',
+                 margin: 0, padding: '20px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(5px)'
+             }}>
+                 {levelNotification}
+             </h1>
+         </div>
+      )}
+
+      {magicEffect && <div style={{ position: 'absolute', top: 250, width:'100%', textAlign:'center', fontSize: '2rem', fontWeight:'900', color: '#fff', textShadow: '0 0 20px #00f2ff', zIndex: 60, animation: 'pop 0.5s ease' }}>{magicEffect}</div>}
 
       {/* PARTICLES */}
       {renderParticles.map(p => (
@@ -499,25 +542,19 @@ function ScrollyGame() {
           }}/>
       ))}
 
-      {/* --- PLAYER WITH ENHANCED, LARGE EFFECTS --- */}
+      {/* --- PLAYER --- */}
       <div ref={playerRef} style={{ position: 'absolute', top: 0, left: '50%', marginLeft: -PLAYER_SIZE / 2, width: PLAYER_SIZE, height: PLAYER_SIZE, zIndex: 20 }}>
          
-         {/* GOLD: Massive Solar Flare (Expanded size to 200% so it sticks out) */}
+         {/* COSMIC MAGNET FIELD (When Active) */}
+         {magnetMode && <div style={{ position:'absolute', top: '-200%', left:'-200%', width:'500%', height:'500%', borderRadius:'50%', border:'2px dashed #00f2ff', opacity: 0.5, animation:'spin 4s infinite linear', pointerEvents:'none' }} />}
+
+         {/* SKIN EFFECTS */}
          {equippedSkin === 'gold' && <div style={{ position:'absolute', top: '-50%', left:'-50%', width:'200%', height:'200%', background:'radial-gradient(circle, rgba(255,215,0,0.8) 0%, rgba(255,140,0,0.6) 40%, transparent 70%)', filter:'blur(6px)', animation:'flame 1s infinite alternate', zIndex:-1 }} />}
-         
-         {/* NEON: Strong Forcefield & Trail */}
          {equippedSkin === 'neon' && <div style={{ position:'absolute', top: '-25%', left:'-25%', width:'150%', height:'150%', background:'radial-gradient(circle, rgba(216, 180, 254, 0.4), transparent)', boxShadow: '0 0 20px 5px #d8b4fe', borderRadius:'50%', animation:'fog 1.5s infinite linear', zIndex:-1 }} />}
-         
-         {/* CRIMSON: Red Rage Ring */}
          {equippedSkin === 'crimson' && <div style={{ position:'absolute', top: '-20%', left:'-20%', width:'140%', height:'140%', border:'4px solid #ef4444', borderRadius:'50%', animation:'pulse 0.8s infinite', zIndex:-1, opacity: 0.7 }} />}
-         
-         {/* DEFAULT: Blue Thruster */}
          {equippedSkin === 'default' && <div style={{ position:'absolute', bottom: '-80%', left:'10%', width:'80%', height:'80%', background:'linear-gradient(to bottom, #60a5fa, transparent)', filter:'blur(4px)', opacity: 0.8, zIndex:-1 }} />}
 
-         {/* The Ball Itself */}
-         <div style={{ width: '100%', height: '100%', borderRadius: activeSkin.shape, background: hyperMode ? '#fff' : activeSkin.color, boxShadow: hyperMode ? '0 0 20px #ff00ff' : '0 0 10px rgba(0,0,0,0.5)', border: activeSkin.border || 'none' }} />
-         
-         {/* Shield Overlay */}
+         <div style={{ width: '100%', height: '100%', borderRadius: activeSkin.shape, background: activeSkin.color, border: activeSkin.border || 'none' }} />
          {hasShield && <div style={{ position: 'absolute', top: -12, left: -12, width: PLAYER_SIZE + 24, height: PLAYER_SIZE + 24, borderRadius: '50%', border: '2px solid #60a5fa', animation: 'spin 3s infinite linear', boxShadow: '0 0 15px #60a5fa' }} />}
       </div>
 
@@ -605,7 +642,6 @@ function ScrollyGame() {
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes pop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
         @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
-        @keyframes speed { 0% { transform: translateY(0); } 100% { transform: translateY(100px); } }
         @keyframes flame { 0% { opacity: 0.8; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.9); } 100% { opacity: 0.8; transform: scale(1); } }
         @keyframes fog { 0% { transform: translateY(0) scale(1); opacity: 0.6; } 100% { transform: translateY(20px) scale(1.2); opacity: 0; } }
         @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.3); opacity: 0; } }
