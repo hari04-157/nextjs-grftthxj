@@ -42,7 +42,8 @@ function ScrollyGame() {
   const [isGhost, setIsGhost] = useState(false);
   const [revived, setRevived] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [lastRunGems, setLastRunGems] = useState(0); // FIX: Store gems for Game Over screen
+  const [lastRunGems, setLastRunGems] = useState(0);
+  const [comboText, setComboText] = useState(''); // NEW: Visual combo text
 
   // --- SHOP STATE ---
   const [ownedSkins, setOwnedSkins] = useState<string[]>(['default']);
@@ -120,6 +121,7 @@ function ScrollyGame() {
   const playerX = useRef(0);
   const velocity = useRef(0);
   const scoreVal = useRef(0);
+  const levelRef = useRef(1); // NEW: Fix for Zone Text Spam
   const shieldActive = useRef(false);
   const ghostModeUntil = useRef(0);
   const speed = useRef(6);
@@ -127,10 +129,12 @@ function ScrollyGame() {
   const requestRef = useRef<any>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const diamondVal = useRef(0);
+  const comboCount = useRef(0); // NEW: Track combos
+  const comboTimer = useRef<any>(null);
 
   // --- TUNING ---
   const START_SPEED = 6;
-  const SPEED_INC = 0.3;
+  const SPEED_INC = 0.5; // INCREASED DIFFICULTY (was 0.3)
   const POINTS_PER_LEVEL = 100;
   const REVIVE_COST = 20;
   const currentTheme = THEMES[Math.min(level - 1, 5)];
@@ -186,8 +190,9 @@ function ScrollyGame() {
     }
   };
 
-  // --- AUDIO ---
+  // --- AUDIO (FIXED) ---
   const handleFileUpload = (event: any) => {
+    event.stopPropagation(); // BUG FIX: Prevent click from bubbling to game controls
     const file = event.target.files[0];
     if (file) {
       const fileUrl = URL.createObjectURL(file);
@@ -196,6 +201,7 @@ function ScrollyGame() {
       audio.volume = 0.5;
       musicRef.current = audio;
       setSongName(file.name);
+      // Removed direct play call here to ensure user must click Play/Resume
     }
   };
 
@@ -236,12 +242,14 @@ function ScrollyGame() {
   }, [gameState]);
 
   const updatePlayerPosition = () => {
-     if (playerX.current < -window.innerWidth / 2) playerX.current = -window.innerWidth / 2;
-     if (playerX.current > window.innerWidth / 2) playerX.current = window.innerWidth / 2;
-     
-     if (playerRef.current) {
-         playerRef.current.style.transform = `translate(${playerX.current}px, ${playerY.current}px)`;
-     }
+      if (playerX.current < -window.innerWidth / 2) playerX.current = -window.innerWidth / 2;
+      if (playerX.current > window.innerWidth / 2) playerX.current = window.innerWidth / 2;
+      
+      if (playerRef.current) {
+         // NEW: FUN - Rotate player based on velocity (tilt effect)
+         const rotation = velocity.current * 2; 
+         playerRef.current.style.transform = `translate(${playerX.current}px, ${playerY.current}px) rotate(${rotation}deg)`;
+      }
   };
 
   const handleJump = (e?: any) => {
@@ -282,6 +290,8 @@ function ScrollyGame() {
     startTime.current = Date.now();
     shieldActive.current = false;
     ghostModeUntil.current = 0;
+    levelRef.current = 1; // Reset ref level
+    comboCount.current = 0; // Reset combo
     setHasShield(false);
     setIsGhost(false);
     setRevived(false);
@@ -291,9 +301,10 @@ function ScrollyGame() {
     setScore(0);
     setDiamonds(0);
     diamondVal.current = 0;
-    setLastRunGems(0); // Reset last run
+    setLastRunGems(0);
     setLevel(1);
     setMagicEffect('');
+    setComboText('');
     updatePlayerPosition();
     playMusic();
   };
@@ -332,10 +343,7 @@ function ScrollyGame() {
     setShake(true);
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(400);
     stopMusic();
-    
-    // FIX: Save current run gems BEFORE resetting
     setLastRunGems(diamondVal.current); 
-    
     saveProgress(scoreVal.current, diamondVal.current);
     setDiamonds(0);
     diamondVal.current = 0;
@@ -361,18 +369,27 @@ function ScrollyGame() {
 
     updatePlayerPosition();
 
+    // --- LEVEL LOGIC FIX: Using Ref to prevent text spam ---
     const currentLevel = 1 + Math.floor(scoreVal.current / POINTS_PER_LEVEL);
-    if (currentLevel !== level) {
-      setLevel(currentLevel);
+    
+    // Only trigger if the CALCULATED level is higher than the STORED REF level
+    if (currentLevel > levelRef.current) {
+      levelRef.current = currentLevel; // Update Ref immediately
+      setLevel(currentLevel); // Update State for UI
+      
       let zoneName = currentLevel <= 6 ? 'CLASSIC ZONE' : currentLevel <= 12 ? 'CRYSTAL ZONE' : currentLevel <= 18 ? 'CYBER ZONE' : 'THE VOID';
       setMagicEffect(zoneName);
+      
+      // Clear effect after 3 seconds
       setTimeout(() => setMagicEffect(''), 3000);
+      
       if (musicRef.current) {
         let newRate = 1.0 + currentLevel * 0.03;
         if (newRate > 1.5) newRate = 1.5;
         musicRef.current.playbackRate = newRate;
       }
     }
+    
     speed.current = START_SPEED + currentLevel * SPEED_INC;
     if (speed.current > 25) speed.current = 25;
     
@@ -468,6 +485,18 @@ function ScrollyGame() {
             setScore(scoreVal.current);
             setDiamonds((d) => d + 1);
             diamondVal.current += 1;
+            
+            // --- NEW: COMBO LOGIC ---
+            comboCount.current += 1;
+            if (comboCount.current > 1) {
+                setComboText(`COMBO x${comboCount.current}!`);
+                if (comboTimer.current) clearTimeout(comboTimer.current);
+                comboTimer.current = setTimeout(() => {
+                    setComboText('');
+                    comboCount.current = 0;
+                }, 2000);
+            }
+
             if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
           }
         }
@@ -555,6 +584,13 @@ function ScrollyGame() {
           <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#facc15' }}>{totalDiamonds + diamonds}</span>
         </div>
       </div>
+
+      {/* NEW: COMBO TEXT */}
+      {comboText && (
+        <div style={{ position: 'absolute', top: 250, left: '50%', transform: 'translateX(-50%)', zIndex: 60, animation: 'pop 0.2s ease' }}>
+            <h3 style={{ fontSize: '1.5rem', color: '#facc15', margin: 0, textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>{comboText}</h3>
+        </div>
+      )}
 
       {magicEffect && (
         <div style={{ position: 'absolute', top: 180, left: '50%', transform: 'translateX(-50%)', width: '100%', animation: 'pop 0.5s ease', zIndex: 60 }}>
@@ -647,20 +683,19 @@ function ScrollyGame() {
         <div key={t.id} style={{ position: 'absolute', top: t.y, left: '50%', marginLeft: t.x - PLAYER_SIZE / 2, width: PLAYER_SIZE, height: PLAYER_SIZE, borderRadius: activeSkin.shape, background: hasShield ? '#60a5fa' : activeSkin.id === 'neon' ? 'transparent' : activeSkin.color, border: activeSkin.border || 'none', opacity: (i / 8) * 0.2, pointerEvents: 'none', transform: `scale(${i / 6})` }} />
       ))}
 
-      {/* PLAYER RENDERED DIRECTLY VIA REF FOR PERFORMANCE - FIXED SHIELD LAG */}
+      {/* PLAYER RENDERED DIRECTLY VIA REF FOR PERFORMANCE */}
       <div
         ref={playerRef}
         style={{
           position: 'absolute',
           top: 0, 
           left: '50%',
-          marginLeft: -PLAYER_SIZE / 2, // Centering fix
+          marginLeft: -PLAYER_SIZE / 2,
           width: PLAYER_SIZE,
           height: PLAYER_SIZE,
           zIndex: 20,
           opacity: isGhost ? 0.5 : 1,
           animation: isGhost ? 'flash 0.1s infinite' : 'none',
-          // Initial transform to avoid jump
           transform: `translate(0px, 300px)` 
         }}
       >
@@ -708,7 +743,7 @@ function ScrollyGame() {
   );
 }
 
-// --- SOLANA WRAPPER (FIXED) ---
+// --- SOLANA WRAPPER ---
 export default function GamePage() {
   const network = WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
