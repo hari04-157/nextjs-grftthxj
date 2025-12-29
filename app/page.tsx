@@ -63,13 +63,13 @@ function ScrollyGame() {
     { name: "Silence", src: "" }
   ];
 
-  // UPDATED SKINS FOR VISIBILITY
+  // SKINS CONFIG
   const SKINS = [
     { id: 'default', name: 'Orbital One', price: 0, color: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 100%)', shape: '50%' },
     { id: 'crimson', name: 'Crimson Ace', price: 50, color: 'linear-gradient(135deg, #ef4444, #991b1b)', shape: '0%' },
     { id: 'gold', name: 'Golden Cube', price: 200, color: 'linear-gradient(135deg, #facc15, #ca8a04)', shape: '4px' },
-    // Made Neon skin slightly visible (glass effect) so it's not invisible without shield
-    { id: 'neon', name: 'Neon Ghost', price: 500, color: 'rgba(216, 180, 254, 0.15)', border: '3px solid #d8b4fe', shape: '50%' },
+    // Neon skin is now partially transparent to show effects better
+    { id: 'neon', name: 'Neon Ghost', price: 500, color: 'rgba(216, 180, 254, 0.2)', border: '3px solid #d8b4fe', shape: '50%' },
   ];
 
   const THEMES = [
@@ -347,7 +347,7 @@ function ScrollyGame() {
       let next = prev
         .map((h) => ({ 
             ...h, y: h.y + speed.current,
-            x: h.moving ? h.x + Math.sin(Date.now() / 200) * 5 : h.x,
+            // REMOVED MOVING WALL LOGIC HERE - WALLS ARE NOW STATIC
         }))
         .filter((h) => h.y < window.innerHeight + 100);
       
@@ -385,10 +385,10 @@ function ScrollyGame() {
           const leftW = window.innerWidth / 2 + newCenter - gap / 2;
           const rightW = window.innerWidth / 2 - newCenter - gap / 2;
           const rowId = Math.random();
-          const isMover = currentLevel > 5 && Math.random() > 0.8;
           
-          next.push({ id: `L-${rowId}`, y: -100, height: 40, width: leftW, x: -(window.innerWidth / 2) + leftW / 2, gapCenter: newCenter, type: 'block', moving: isMover });
-          next.push({ id: `R-${rowId}`, y: -100, height: 40, width: rightW, x: window.innerWidth / 2 - rightW / 2, gapCenter: newCenter, type: 'block', moving: isMover });
+          // SET MOVING TO FALSE FOR ALL WALLS
+          next.push({ id: `L-${rowId}`, y: -100, height: 40, width: leftW, x: -(window.innerWidth / 2) + leftW / 2, gapCenter: newCenter, type: 'block', moving: false });
+          next.push({ id: `R-${rowId}`, y: -100, height: 40, width: rightW, x: window.innerWidth / 2 - rightW / 2, gapCenter: newCenter, type: 'block', moving: false });
 
           const rand = Math.random();
           if (rand > 0.96 && !shieldActive.current)
@@ -499,17 +499,26 @@ function ScrollyGame() {
           }}/>
       ))}
 
-      {/* --- PLAYER WITH DYNAMIC SKIN EFFECTS --- */}
+      {/* --- PLAYER WITH ENHANCED, LARGE EFFECTS --- */}
       <div ref={playerRef} style={{ position: 'absolute', top: 0, left: '50%', marginLeft: -PLAYER_SIZE / 2, width: PLAYER_SIZE, height: PLAYER_SIZE, zIndex: 20 }}>
          
-         {/* DYNAMIC EFFECTS */}
-         {equippedSkin === 'gold' && <div style={{ position:'absolute', top: '10%', left:'-10%', width:'120%', height:'120%', background:'radial-gradient(circle, rgba(255,200,0,0.8), transparent)', filter:'blur(4px)', animation:'flame 0.1s infinite', zIndex:-1 }} />}
-         {equippedSkin === 'neon' && <div style={{ position:'absolute', top: '20%', left:'-10%', width:'120%', height:'120%', background:'rgba(0,0,0,0.8)', filter:'blur(6px)', borderRadius:'50%', animation:'fog 2s infinite linear', zIndex:-1 }} />}
-         {equippedSkin === 'crimson' && <div style={{ position:'absolute', top: 0, left:0, width:'100%', height:'100%', border:'2px solid red', borderRadius:'50%', animation:'pulse 0.5s infinite', zIndex:-1 }} />}
-         {equippedSkin === 'default' && <div style={{ position:'absolute', bottom: '-20%', left:'20%', width:'60%', height:'40%', background:'linear-gradient(to bottom, #3b82f6, transparent)', filter:'blur(2px)', zIndex:-1 }} />}
+         {/* GOLD: Massive Solar Flare (Expanded size to 200% so it sticks out) */}
+         {equippedSkin === 'gold' && <div style={{ position:'absolute', top: '-50%', left:'-50%', width:'200%', height:'200%', background:'radial-gradient(circle, rgba(255,215,0,0.8) 0%, rgba(255,140,0,0.6) 40%, transparent 70%)', filter:'blur(6px)', animation:'flame 1s infinite alternate', zIndex:-1 }} />}
+         
+         {/* NEON: Strong Forcefield & Trail */}
+         {equippedSkin === 'neon' && <div style={{ position:'absolute', top: '-25%', left:'-25%', width:'150%', height:'150%', background:'radial-gradient(circle, rgba(216, 180, 254, 0.4), transparent)', boxShadow: '0 0 20px 5px #d8b4fe', borderRadius:'50%', animation:'fog 1.5s infinite linear', zIndex:-1 }} />}
+         
+         {/* CRIMSON: Red Rage Ring */}
+         {equippedSkin === 'crimson' && <div style={{ position:'absolute', top: '-20%', left:'-20%', width:'140%', height:'140%', border:'4px solid #ef4444', borderRadius:'50%', animation:'pulse 0.8s infinite', zIndex:-1, opacity: 0.7 }} />}
+         
+         {/* DEFAULT: Blue Thruster */}
+         {equippedSkin === 'default' && <div style={{ position:'absolute', bottom: '-80%', left:'10%', width:'80%', height:'80%', background:'linear-gradient(to bottom, #60a5fa, transparent)', filter:'blur(4px)', opacity: 0.8, zIndex:-1 }} />}
 
+         {/* The Ball Itself */}
          <div style={{ width: '100%', height: '100%', borderRadius: activeSkin.shape, background: hyperMode ? '#fff' : activeSkin.color, boxShadow: hyperMode ? '0 0 20px #ff00ff' : '0 0 10px rgba(0,0,0,0.5)', border: activeSkin.border || 'none' }} />
-         {hasShield && <div style={{ position: 'absolute', top: -8, left: -8, width: PLAYER_SIZE + 16, height: PLAYER_SIZE + 16, borderRadius: '50%', border: '2px solid #60a5fa', animation: 'spin 3s infinite linear' }} />}
+         
+         {/* Shield Overlay */}
+         {hasShield && <div style={{ position: 'absolute', top: -12, left: -12, width: PLAYER_SIZE + 24, height: PLAYER_SIZE + 24, borderRadius: '50%', border: '2px solid #60a5fa', animation: 'spin 3s infinite linear', boxShadow: '0 0 15px #60a5fa' }} />}
       </div>
 
       {/* OBSTACLES */}
