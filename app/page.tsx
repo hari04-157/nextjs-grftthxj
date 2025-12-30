@@ -28,39 +28,32 @@ const WalletMultiButton = dynamic(
 function ScrollyGame() {
   const { publicKey } = useWallet();
 
-  // --- STATE VARIABLES ---
-  const [gameState, setGameState] = useState('START'); 
+  // --- STATE ---
+  const [gameState, setGameState] = useState('START');
   const [score, setScore] = useState(0);
   const [diamonds, setDiamonds] = useState(0);
   const [totalDiamonds, setTotalDiamonds] = useState(0);
   const [level, setLevel] = useState(1);
   const [topScores, setTopScores] = useState<{ addr: string; score: number }[]>([]);
-  
-  // Visuals & Effects
   const [magicEffect, setMagicEffect] = useState('');
-  const [levelNotification, setLevelNotification] = useState('');
   const [shake, setShake] = useState(false);
-  const [comboText, setComboText] = useState('');
-  
-  // Player Status
   const [hasShield, setHasShield] = useState(false);
+  const [isGhost, setIsGhost] = useState(false);
   const [revived, setRevived] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [lastRunGems, setLastRunGems] = useState(0);
-
-  // --- MAGNET FEATURE (THE BOOM) ---
-  const [magnetMode, setMagnetMode] = useState(false);
-  const [energyCharge, setEnergyCharge] = useState(0); // 0 to 100
+  const [comboText, setComboText] = useState('');
 
   // --- SHOP STATE ---
   const [ownedSkins, setOwnedSkins] = useState<string[]>(['default']);
   const [equippedSkin, setEquippedSkin] = useState('default');
-  const [shopDetailItem, setShopDetailItem] = useState<any>(null);
+  const [shopDetailItem, setShopDetailItem] = useState<any>(null); 
 
   // --- MUSIC STATE ---
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // --- CONFIGURATION ---
+  // --- CONFIG ---
   const MUSIC_TRACKS = [
     { name: "Our Song", src: "/our-song.wav" },
     { name: "Monkey Business", src: "/monkey.aac" },
@@ -68,22 +61,47 @@ function ScrollyGame() {
   ];
 
   const SKINS = [
-    { id: 'default', name: 'Orbital One', price: 0, color: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 100%)', shape: '50%' },
-    { id: 'crimson', name: 'Crimson Ace', price: 50, color: 'linear-gradient(135deg, #ef4444, #991b1b)', shape: '0%' },
-    { id: 'gold', name: 'Golden Cube', price: 200, color: 'linear-gradient(135deg, #facc15, #ca8a04)', shape: '4px' },
-    { id: 'neon', name: 'Neon Ghost', price: 500, color: 'rgba(216, 180, 254, 0.2)', border: '3px solid #d8b4fe', shape: '50%' },
+    {
+      id: 'default',
+      name: 'Orbital One',
+      price: 0,
+      color: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 100%)',
+      shape: '50%',
+    },
+    {
+      id: 'crimson',
+      name: 'Crimson Ace',
+      price: 50,
+      color: 'linear-gradient(135deg, #ef4444, #991b1b)',
+      shape: '0%',
+    },
+    {
+      id: 'gold',
+      name: 'Golden Cube',
+      price: 200,
+      color: 'linear-gradient(135deg, #facc15, #ca8a04)',
+      shape: '4px',
+    },
+    {
+      id: 'neon',
+      name: 'Neon Ghost',
+      price: 500,
+      color: 'transparent',
+      border: '3px solid #d8b4fe',
+      shape: '50%',
+    },
   ];
 
   const THEMES = [
-    { name: 'SPACE START', bg: 'linear-gradient(180deg, #0f172a 0%, #334155 100%)', color: '#cbd5e1' },
-    { name: 'DEEP OCEAN', bg: 'radial-gradient(circle at center, #1e3a8a 0%, #020617 100%)', color: '#3b82f6' },
-    { name: 'TOXIC WASTELAND', bg: 'linear-gradient(180deg, #064e3b 0%, #022c22 100%)', color: '#4ade80' },
-    { name: 'MAGMA CORE', bg: 'linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%)', color: '#f87171' },
-    { name: 'CYBER CITY', bg: 'radial-gradient(circle at center, #581c87 0%, #2e1065 100%)', color: '#d8b4fe' },
-    { name: 'THE VOID', bg: 'radial-gradient(circle at center, #000000 0%, #1c1917 100%)', color: '#facc15' },
+    { name: 'CLASSIC', bg: 'linear-gradient(180deg, #0f172a 0%, #334155 100%)', color: '#cbd5e1' },
+    { name: 'OCEAN', bg: 'radial-gradient(circle at center, #1e3a8a 0%, #020617 100%)', color: '#3b82f6' },
+    { name: 'TOXIC', bg: 'linear-gradient(180deg, #064e3b 0%, #022c22 100%)', color: '#4ade80' },
+    { name: 'MAGMA', bg: 'linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%)', color: '#f87171' },
+    { name: 'CYBER', bg: 'radial-gradient(circle at center, #581c87 0%, #2e1065 100%)', color: '#d8b4fe' },
+    { name: 'VOID', bg: 'radial-gradient(circle at center, #000000 0%, #1c1917 100%)', color: '#facc15' },
   ];
 
-  // --- REFS (PERFORMANCE) ---
+  // --- REFS ---
   const playerRef = useRef<HTMLDivElement>(null);
   const playerY = useRef(300);
   const playerX = useRef(0);
@@ -97,21 +115,22 @@ function ScrollyGame() {
   const requestRef = useRef<any>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const diamondVal = useRef(0);
-  const particles = useRef<any[]>([]);
-  
-  // Magnet Refs
-  const energyRef = useRef(0); 
-  const isMagnet = useRef(false);
+  const comboCount = useRef(0);
+  const comboTimer = useRef<any>(null);
 
   // --- TUNING ---
-  const START_SPEED = 7;
-  const GRAVITY = 0.6;
-  const JUMP = -10;
-  const PLAYER_SIZE = 30;
+  const START_SPEED = 6;
+  const SPEED_INC = 0.5;
+  const POINTS_PER_LEVEL = 100;
+  const REVIVE_COST = 20;
+  const currentTheme = THEMES[Math.min(level - 1, 5)];
+  const GRAVITY = 0.7;
+  const JUMP = -9.5;
+  const PLAYER_SIZE = 28;
   const ROOF_LIMIT = 50;
-  const SCORE_PER_LEVEL = 100; 
+  const HIT_MARGIN = 12;
 
-  // --- INITIALIZATION ---
+  // --- SAVE SYSTEM ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedScores = JSON.parse(localStorage.getItem('scrollyScoresSol') || '[]');
@@ -123,6 +142,7 @@ function ScrollyGame() {
       const savedEquip = localStorage.getItem('scrollyEquipped') || 'default';
       setEquippedSkin(savedEquip);
       
+      // Initialize Audio
       musicRef.current = new Audio(MUSIC_TRACKS[0].src);
       musicRef.current.loop = true;
     }
@@ -133,7 +153,9 @@ function ScrollyGame() {
       ? publicKey.toString().slice(0, 4) + '..' + publicKey.toString().slice(-4)
       : 'Guest';
     const newEntry = { addr: playerName, score: finalScore };
-    const newScores = [...topScores, newEntry].sort((a, b) => b.score - a.score).slice(0, 3);
+    const newScores = [...topScores, newEntry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
     setTopScores(newScores);
     localStorage.setItem('scrollyScoresSol', JSON.stringify(newScores));
 
@@ -146,17 +168,22 @@ function ScrollyGame() {
      if(ownedSkins.includes(skin.id)) {
          setEquippedSkin(skin.id);
          localStorage.setItem('scrollyEquipped', skin.id);
-     } else if(totalDiamonds >= skin.price) {
-         const newTotal = totalDiamonds - skin.price;
-         setTotalDiamonds(newTotal);
-         localStorage.setItem('scrollyGems', newTotal.toString());
-         const newOwned = [...ownedSkins, skin.id];
-         setOwnedSkins(newOwned);
-         localStorage.setItem('scrollySkins', JSON.stringify(newOwned));
-         setEquippedSkin(skin.id);
-         localStorage.setItem('scrollyEquipped', skin.id);
      } else {
-         alert("Not enough gems!");
+         // Attempt purchase
+         if(totalDiamonds >= skin.price) {
+             const newTotal = totalDiamonds - skin.price;
+             setTotalDiamonds(newTotal);
+             localStorage.setItem('scrollyGems', newTotal.toString());
+             
+             const newOwned = [...ownedSkins, skin.id];
+             setOwnedSkins(newOwned);
+             localStorage.setItem('scrollySkins', JSON.stringify(newOwned));
+             
+             setEquippedSkin(skin.id);
+             localStorage.setItem('scrollyEquipped', skin.id);
+         } else {
+             alert("Not enough gems!");
+         }
      }
   };
 
@@ -166,7 +193,7 @@ function ScrollyGame() {
       if(musicRef.current) {
           musicRef.current.src = MUSIC_TRACKS[index].src;
           if(MUSIC_TRACKS[index].src !== "") {
-              musicRef.current.play().catch(e => console.log(e));
+              musicRef.current.play().catch(e => console.log("Audio play error:", e));
               setIsPlaying(true);
           } else {
               musicRef.current.pause();
@@ -177,9 +204,15 @@ function ScrollyGame() {
 
   const playMusic = () => {
     if (musicRef.current && MUSIC_TRACKS[currentTrackIndex].src !== "") {
-      musicRef.current.playbackRate = 1;
       musicRef.current.play().catch(() => {});
       setIsPlaying(true);
+    }
+  };
+
+  const pauseMusic = () => {
+    if (musicRef.current) {
+        musicRef.current.pause();
+        setIsPlaying(false);
     }
   };
 
@@ -194,16 +227,16 @@ function ScrollyGame() {
   // --- RENDER STATE ---
   const [hazards, setHazards] = useState<any[]>([]);
   const [coins, setCoins] = useState<any[]>([]);
-  const [renderParticles, setRenderParticles] = useState<any[]>([]); 
+  const [trail, setTrail] = useState<any[]>([]);
 
   // --- CONTROLS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (gameState !== 'PLAYING') return;
-      if (e.key === 'ArrowLeft') playerX.current -= 45;
-      if (e.key === 'ArrowRight') playerX.current += 45;
+      if (e.key === 'ArrowLeft') playerX.current -= 40;
+      if (e.key === 'ArrowRight') playerX.current += 40;
       if (e.code === 'Space' || e.key === 'ArrowUp') handleJump(e);
-      if (e.key === 'Escape') setGameState(prev => prev === 'PLAYING' ? 'PAUSED' : 'PLAYING');
+      if (e.key === 'Escape' || e.key === 'p') togglePause();
       updatePlayerPosition();
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -215,17 +248,17 @@ function ScrollyGame() {
       if (playerX.current > window.innerWidth / 2) playerX.current = window.innerWidth / 2;
       
       if (playerRef.current) {
-         const tilt = velocity.current * 3; 
-         playerRef.current.style.transform = `translate(${playerX.current}px, ${playerY.current}px) rotate(${tilt}deg)`;
+         const rotation = velocity.current * 2; 
+         playerRef.current.style.transform = `translate(${playerX.current}px, ${playerY.current}px) rotate(${rotation}deg)`;
       }
   };
 
   const handleJump = (e?: any) => {
     if (e && e.cancelable && e.type !== 'mousedown') e.preventDefault();
-    if (e?.target?.closest('button')) return;
+    if (e && e.target && e.target.closest && (e.target.closest('button') || e.target.closest('input'))) return;
 
     if (gameState === 'START') startGame();
-    else if (gameState === 'PAUSED') setGameState('PLAYING');
+    else if (gameState === 'PAUSED') togglePause();
     else if (gameState === 'PLAYING')
       if (playerY.current > ROOF_LIMIT + 10) velocity.current = JUMP;
   };
@@ -234,28 +267,17 @@ function ScrollyGame() {
     if (gameState !== 'PLAYING') return;
     if (e.cancelable && e.type !== 'mousemove') e.preventDefault();
     
+    if (typeof window === 'undefined') return;
     let clientX;
-    if (e.type.includes('touch') && e.touches[0]) clientX = e.touches[0].clientX;
+    if (e.type.includes('touch') && e.touches && e.touches[0])
+      clientX = e.touches[0].clientX;
     else clientX = e.clientX;
     
     if (clientX) {
-      playerX.current = clientX - window.innerWidth / 2;
+      const centerX = window.innerWidth / 2;
+      playerX.current = clientX - centerX;
       updatePlayerPosition();
     }
-  };
-
-  const spawnParticles = (x: number, y: number, color: string, count: number) => {
-      for(let i=0; i<count; i++) {
-          particles.current.push({
-              id: Math.random(),
-              x: x,
-              y: y,
-              vx: (Math.random() - 0.5) * 10,
-              vy: (Math.random() - 0.5) * 10,
-              life: 1.0,
-              color: color
-          });
-      }
   };
 
   const startGame = () => {
@@ -270,32 +292,62 @@ function ScrollyGame() {
     shieldActive.current = false;
     ghostModeUntil.current = 0;
     levelRef.current = 1; 
-    energyRef.current = 0;
-    isMagnet.current = false;
-    setEnergyCharge(0);
-    setMagnetMode(false);
+    comboCount.current = 0; 
     setHasShield(false);
+    setIsGhost(false);
     setRevived(false);
     setHazards([]);
     setCoins([]);
-    particles.current = [];
+    setTrail([]);
     setScore(0);
     setDiamonds(0);
     diamondVal.current = 0;
+    setLastRunGems(0);
     setLevel(1);
     setMagicEffect('');
-    setLevelNotification('');
+    setComboText('');
+    updatePlayerPosition();
     playMusic();
+  };
+
+  const reviveGame = () => {
+    if (totalDiamonds >= REVIVE_COST) {
+      const newTotal = totalDiamonds - REVIVE_COST;
+      setTotalDiamonds(newTotal);
+      localStorage.setItem('scrollyGems', newTotal.toString());
+      playerY.current = 300;
+      velocity.current = JUMP;
+      setHasShield(true);
+      shieldActive.current = true;
+      ghostModeUntil.current = Date.now() + 3000;
+      setRevived(true);
+      setGameState('PLAYING');
+      setShake(false);
+      setMagicEffect('REVIVED!');
+      playMusic();
+    }
+  };
+
+  const togglePause = () => {
+    if (gameState === 'PLAYING') {
+      setGameState('PAUSED');
+      pauseMusic();
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    } else if (gameState === 'PAUSED') {
+      setGameState('PLAYING');
+      playMusic();
+    }
   };
 
   const gameOver = () => {
     setGameState('GAME_OVER');
     setShake(true);
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(400);
-    spawnParticles(playerX.current, playerY.current, '#ff4757', 30);
     stopMusic();
     setLastRunGems(diamondVal.current); 
     saveProgress(scoreVal.current, diamondVal.current);
+    setDiamonds(0);
+    diamondVal.current = 0;
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
   };
 
@@ -305,145 +357,134 @@ function ScrollyGame() {
     velocity.current += GRAVITY;
     playerY.current += velocity.current;
 
-    if (playerY.current < ROOF_LIMIT) { playerY.current = ROOF_LIMIT; velocity.current = 1; }
-    if (playerY.current > window.innerHeight) { gameOver(); return; }
+    if (playerY.current < ROOF_LIMIT) {
+      playerY.current = ROOF_LIMIT;
+      updatePlayerPosition();
+      gameOver();
+      return;
+    }
+    if (playerY.current > window.innerHeight) {
+      gameOver();
+      return;
+    }
 
     updatePlayerPosition();
 
-    // --- LEVEL & DIFFICULTY LOGIC ---
-    const currentLevel = 1 + Math.floor(scoreVal.current / SCORE_PER_LEVEL);
+    // --- LEVEL LOGIC ---
+    const currentLevel = 1 + Math.floor(scoreVal.current / POINTS_PER_LEVEL);
     
     if (currentLevel > levelRef.current) {
       levelRef.current = currentLevel; 
       setLevel(currentLevel); 
       
-      const themeIndex = Math.min(currentLevel - 1, THEMES.length - 1);
-      const zoneName = THEMES[themeIndex].name;
+      let zoneName = currentLevel <= 6 ? 'CLASSIC ZONE' : currentLevel <= 12 ? 'CRYSTAL ZONE' : currentLevel <= 18 ? 'CYBER ZONE' : 'THE VOID';
+      setMagicEffect(zoneName);
+      setTimeout(() => setMagicEffect(''), 3000);
       
-      setLevelNotification(`LEVEL ${currentLevel}: ${zoneName}`);
-      setTimeout(() => setLevelNotification(''), 3000); 
-      
-      setMagicEffect('SPEED UP!');
-      setTimeout(() => setMagicEffect(''), 1500);
+      if (musicRef.current) {
+        let newRate = 1.0 + currentLevel * 0.03;
+        if (newRate > 1.5) newRate = 1.5;
+        musicRef.current.playbackRate = newRate;
+      }
     }
     
-    // Speed increases with Level
-    let currentSpeed = START_SPEED + (currentLevel * 0.5);
-    if (currentSpeed > 30) currentSpeed = 30;
-    speed.current = currentSpeed;
+    speed.current = START_SPEED + currentLevel * SPEED_INC;
+    if (speed.current > 25) speed.current = 25;
+    
+    if (Date.now() < ghostModeUntil.current) setIsGhost(true);
+    else setIsGhost(false);
 
-    // --- MAGNET MODE LOGIC ---
-    if(isMagnet.current) {
-        energyRef.current -= 0.3; // Drain
-        if(energyRef.current <= 0) {
-            isMagnet.current = false;
-            setMagnetMode(false);
-            setMagicEffect('');
-        }
-        setEnergyCharge(energyRef.current);
+    if (scoreVal.current % 5 === 0) {
+        setTrail((prev) => {
+        const newTrail = [...prev, { x: playerX.current, y: playerY.current, id: Math.random() }];
+        if (newTrail.length > 5) newTrail.shift();
+        return newTrail;
+        });
     }
 
-    // --- PARTICLES ---
-    particles.current.forEach(p => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= 0.05;
-    });
-    particles.current = particles.current.filter(p => p.life > 0);
-    setRenderParticles([...particles.current]); 
-
-    // --- SPAWNER: JAGGED PATH LOGIC ---
+    // --- ENHANCED WALL SPAWNER (HARDER) ---
     setHazards((prev) => {
       let next = prev
-        .map((h) => ({ 
-            ...h, y: h.y + speed.current,
-        }))
+        .map((h) => ({ ...h, y: h.y + speed.current }))
         .filter((h) => h.y < window.innerHeight + 100);
       
-      // Collision
-      if(Date.now() > ghostModeUntil.current) {
-          for (const h of next) {
-            if (
-              Math.abs(playerY.current - h.y) < h.height / 2 + PLAYER_SIZE / 2 - 10 &&
-              Math.abs(playerX.current - h.x) < h.width / 2 + PLAYER_SIZE / 2 - 10
-            ) {
-              if (shieldActive.current) {
-                shieldActive.current = false;
-                setHasShield(false);
-                ghostModeUntil.current = Date.now() + 1500;
-                setMagicEffect('SHIELD BROKE!');
-                spawnParticles(playerX.current, playerY.current, '#60a5fa', 15);
-              } else {
-                gameOver();
-                return next;
-              }
-            }
+      for (let i = 0; i < next.length; i++) {
+        const h = next[i];
+        if (Date.now() < ghostModeUntil.current) continue;
+        if (
+          Math.abs(playerY.current - h.y) < h.height / 2 + PLAYER_SIZE / 2 - HIT_MARGIN &&
+          Math.abs(playerX.current - h.x) < h.width / 2 + PLAYER_SIZE / 2 - HIT_MARGIN
+        ) {
+          if (shieldActive.current) {
+            shieldActive.current = false;
+            setHasShield(false);
+            ghostModeUntil.current = Date.now() + 1500;
+            setMagicEffect('SHIELD SAVED YOU!');
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(100);
+            setTimeout(() => setMagicEffect(''), 1000);
+          } else {
+            gameOver();
+            return next;
           }
+        }
       }
 
       if (Date.now() - startTime.current > 800) {
         const last = next[next.length - 1];
-        if (!last || last.y > 120) {
+        if (!last || last.y > 100) {
           
-          // 1. NARROWER GAP (Harder per level)
-          let gap = 250 - (currentLevel * 10);
-          if (gap < 110) gap = 110; 
-          
-          // 2. JAGGED PATH (Shifts left/right)
+          // 1. GAP WIDTH SHRINKING (Harder as levels go up)
+          let gapWidth = 220 - (currentLevel * 8);
+          if (gapWidth < 100) gapWidth = 100; // Cap at 100px width
+
           const lastCenter = last ? last.gapCenter : 0;
-          const shiftIntensity = 50 + (currentLevel * 8); 
+          
+          // 2. INCREASED ZIG-ZAG (More Jagged Walls)
+          // As level goes up, shiftIntensity increases
+          const shiftIntensity = 60 + (currentLevel * 8); 
           let shift = (Math.random() * shiftIntensity * 2) - shiftIntensity;
           
-          // 3. DOGLEG TURN (Occasional hard shift)
-          if (Math.random() > 0.7) shift *= 1.5;
+          // 3. HARD TURN MECHANIC (Dogleg)
+          // 20% chance to have a significantly larger shift
+          if (Math.random() > 0.8) shift *= 1.5;
 
           let newCenter = lastCenter + shift;
           
-          // 4. BOUNDARY CHECK (Keep path on screen)
-          const maxCenter = (window.innerWidth / 2) - (gap / 2) - 10;
+          // 4. BOUNDARY CHECK
+          const maxCenter = (window.innerWidth / 2) - (gapWidth / 2) - 10;
           if (newCenter > maxCenter) newCenter = maxCenter;
           if (newCenter < -maxCenter) newCenter = -maxCenter;
           
-          const leftW = window.innerWidth / 2 + newCenter - gap / 2;
-          const rightW = window.innerWidth / 2 - newCenter - gap / 2;
+          const leftBlockWidth = window.innerWidth / 2 + newCenter - gapWidth / 2;
+          const rightBlockWidth = window.innerWidth / 2 - newCenter - gapWidth / 2;
           const rowId = Math.random();
+          let obsType = 'WALL';
+          if (currentLevel > 6 && currentLevel <= 12) obsType = 'SHARD';
+          if (currentLevel > 12 && currentLevel <= 18) obsType = 'SAW';
+          if (currentLevel > 18) obsType = 'GLITCH';
           
-          // STATIC WALLS (Not moving)
-          next.push({ id: `L-${rowId}`, y: -100, height: 40, width: leftW, x: -(window.innerWidth / 2) + leftW / 2, gapCenter: newCenter, type: 'block', moving: false });
-          next.push({ id: `R-${rowId}`, y: -100, height: 40, width: rightW, x: window.innerWidth / 2 - rightW / 2, gapCenter: newCenter, type: 'block', moving: false });
+          next.push({ id: `L-${rowId}`, y: -60, height: 40, width: leftBlockWidth, x: -(window.innerWidth / 2) + leftBlockWidth / 2, gapCenter: newCenter, type: 'block', obstacleType: obsType });
+          next.push({ id: `R-${rowId}`, y: -60, height: 40, width: rightBlockWidth, x: window.innerWidth / 2 - rightBlockWidth / 2, gapCenter: newCenter, type: 'block', obstacleType: obsType });
 
-          // COIN SPAWNING
           const rand = Math.random();
           if (rand > 0.96 && !shieldActive.current)
-            setCoins((curr) => [...curr, { id: `S-${rowId}`, y: -100, x: newCenter, type: 'shield' }]);
-          else 
-            setCoins((curr) => [...curr, { id: `C-${rowId}`, y: -100, x: newCenter, type: 'coin' }]);
+            setCoins((curr) => [...curr, { id: `S-${rowId}`, y: -60, x: newCenter, type: 'shield', collected: false }]);
+          else if (rand > 0.7)
+            setCoins((curr) => [...curr, { id: `C-${rowId}`, y: -60, x: newCenter, type: 'coin', collected: false }]);
           
-          if (next.length % 10 === 0) setScore(s => s + 1);
+          if (next.length % 10 === 0) {
+            scoreVal.current += 1;
+            setScore(scoreVal.current);
+          }
         }
       }
       return next;
     });
 
-    // --- COIN MAGNET LOGIC ---
     setCoins((prev) => {
-      let next = prev.map((c) => {
-          let newX = c.x;
-          let newY = c.y + speed.current;
-          
-          // If Magnet Active, pull coins
-          if (isMagnet.current && !c.collected) {
-              const dx = playerX.current - c.x;
-              const dy = playerY.current - c.y;
-              const distance = Math.sqrt(dx*dx + dy*dy);
-              if (distance < 400) { 
-                  newX += dx * 0.15; 
-                  newY += dy * 0.15;
-              }
-          }
-          return { ...c, x: newX, y: newY };
-      }).filter((c) => c.y < window.innerHeight + 50 && !c.collected);
-
+      let next = prev
+        .map((c) => ({ ...c, y: c.y + speed.current }))
+        .filter((c) => c.y < window.innerHeight + 50 && !c.collected);
       next.forEach((c) => {
         const dist = Math.sqrt(Math.pow(playerX.current - c.x, 2) + Math.pow(playerY.current - c.y, 2));
         if (dist < 40) {
@@ -452,24 +493,25 @@ function ScrollyGame() {
             shieldActive.current = true;
             setHasShield(true);
             setMagicEffect('SHIELD EQUIPPED');
+            setTimeout(() => setMagicEffect(''), 1500);
           } else {
-            scoreVal.current += 10;
+            scoreVal.current += 5;
             setScore(scoreVal.current);
             setDiamonds((d) => d + 1);
             diamondVal.current += 1;
-            spawnParticles(c.x, c.y, '#facc15', 10);
             
-            // CHARGE MAGNET
-            if(!isMagnet.current) {
-                energyRef.current += 5; 
-                if(energyRef.current >= 100) {
-                    energyRef.current = 100;
-                    isMagnet.current = true;
-                    setMagnetMode(true);
-                    setMagicEffect('COSMIC MAGNET!');
-                }
-                setEnergyCharge(energyRef.current);
+            // --- COMBO LOGIC ---
+            comboCount.current += 1;
+            if (comboCount.current > 1) {
+                setComboText(`COMBO x${comboCount.current}!`);
+                if (comboTimer.current) clearTimeout(comboTimer.current);
+                comboTimer.current = setTimeout(() => {
+                    setComboText('');
+                    comboCount.current = 0;
+                }, 2000);
             }
+
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
           }
         }
       });
@@ -480,188 +522,275 @@ function ScrollyGame() {
   };
 
   useEffect(() => {
-    if (gameState === 'PLAYING') requestRef.current = requestAnimationFrame(gameLoop);
-    return () => cancelAnimationFrame(requestRef.current);
+    if (gameState === 'PLAYING')
+      requestRef.current = requestAnimationFrame(gameLoop);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
   }, [gameState]);
 
   const activeSkin = SKINS.find((s) => s.id === equippedSkin) || SKINS[0];
-  const currentTheme = THEMES[Math.min(level - 1, THEMES.length - 1)];
 
   return (
     <div
-      onMouseDown={handleJump} onMouseMove={handleMove}
-      onTouchStart={handleJump} onTouchMove={handleMove}
+      onMouseDown={handleJump}
+      onMouseMove={handleMove}
+      onTouchStart={handleJump}
+      onTouchMove={handleMove}
       style={{
-        width: '100vw', height: '100vh',
+        width: '100vw',
+        height: '100vh',
         background: currentTheme.bg,
-        overflow: 'hidden', position: 'relative', cursor: 'none',
-        fontFamily: '"Segoe UI", Roboto, sans-serif', textAlign: 'center',
-        userSelect: 'none', touchAction: 'none', color: 'white',
+        overflow: 'hidden',
+        position: 'relative',
+        cursor: 'crosshair',
+        fontFamily: '"Segoe UI", Roboto, sans-serif',
+        textAlign: 'center',
+        userSelect: 'none',
+        touchAction: 'none',
+        color: 'white',
         transition: 'background 2s ease',
         animation: shake ? 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both' : 'none',
       }}
     >
-      {/* --- UI HUD - WALLET FIXED (zIndex 100) --- */}
-      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 100, display: 'flex', gap: 10, alignItems: 'center' }}>
-          {!publicKey && <div style={{ fontSize: '0.8rem', opacity: 0.7, marginRight: 5 }}>Connect wallet to save progress →</div>}
-          <WalletMultiButton />
-      </div>
-      
-      {/* ENERGY BAR (MAGNET) */}
-      <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', width: '300px', zIndex: 55, display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {/* Level Progress */}
-          <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
-             <div style={{ width: `${(score % SCORE_PER_LEVEL)}%`, height: '100%', background: '#fff', borderRadius: '2px', transition: 'width 0.2s' }} />
-          </div>
-
-          {/* Energy Bar */}
-          <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px', overflow:'hidden' }}>
-              <div style={{ 
-                  width: `${energyCharge}%`, height: '100%', 
-                  background: magnetMode ? '#00f2ff' : '#facc15', 
-                  boxShadow: magnetMode ? '0 0 15px #00f2ff' : 'none',
-                  borderRadius: '4px', transition: 'width 0.1s linear' 
-              }} />
-          </div>
-          {magnetMode && <div style={{ fontSize:'0.9rem', color:'#00f2ff', fontWeight:'bold', textShadow:'0 0 5px black', animation:'pulse 0.5s infinite' }}>MAGNET ACTIVE</div>}
+      {/* WALLET BUTTON */}
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 60 }}>
+        <WalletMultiButton />
       </div>
 
-      <div style={{ position: 'absolute', top: 110, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', borderRadius: '30px', padding: '8px 20px', display: 'flex', gap: '20px', zIndex: 50, border: '1px solid rgba(255,255,255,0.15)' }}>
-        <div><span style={{ fontSize: '0.7rem', opacity: 0.7 }}>SCORE</span> <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{score}</span></div>
-        <div><span style={{ fontSize: '1.2rem' }}>💎</span> <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#facc15' }}>{totalDiamonds + diamonds}</span></div>
-      </div>
-
-      {/* --- LEVEL NOTIFICATION --- */}
-      {levelNotification && (
-         <div style={{ 
-             position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', 
-             width: '100%', textAlign: 'center', zIndex: 90, animation: 'pop 0.5s ease-out' 
-         }}>
-             <h1 style={{ 
-                 fontSize: '3.5rem', fontWeight: '900', color: '#fff', 
-                 textShadow: '0 0 30px #000, 0 0 10px currentColor',
-                 margin: 0, padding: '20px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(5px)'
-             }}>
-                 {levelNotification}
-             </h1>
-         </div>
-      )}
-
-      {magicEffect && <div style={{ position: 'absolute', top: 250, width:'100%', textAlign:'center', fontSize: '2rem', fontWeight:'900', color: '#fff', textShadow: '0 0 20px #00f2ff', zIndex: 60, animation: 'pop 0.5s ease' }}>{magicEffect}</div>}
-
-      {/* PARTICLES */}
-      {renderParticles.map(p => (
-          <div key={p.id} style={{
-              position: 'absolute', top: p.y, left: '50%', marginLeft: p.x,
-              width: 6, height: 6, borderRadius: '50%',
-              background: p.color, opacity: p.life, pointerEvents: 'none', zIndex: 30
-          }}/>
-      ))}
-
-      {/* --- PLAYER --- */}
-      <div ref={playerRef} style={{ position: 'absolute', top: 0, left: '50%', marginLeft: -PLAYER_SIZE / 2, width: PLAYER_SIZE, height: PLAYER_SIZE, zIndex: 20 }}>
-         
-         {/* COSMIC MAGNET FIELD */}
-         {magnetMode && <div style={{ position:'absolute', top: '-200%', left:'-200%', width:'500%', height:'500%', borderRadius:'50%', border:'2px dashed #00f2ff', opacity: 0.5, animation:'spin 4s infinite linear', pointerEvents:'none' }} />}
-
-         {/* SKIN EFFECTS (BIG SIZE) */}
-         {equippedSkin === 'gold' && <div style={{ position:'absolute', top: '-50%', left:'-50%', width:'200%', height:'200%', background:'radial-gradient(circle, rgba(255,215,0,0.8) 0%, rgba(255,140,0,0.6) 40%, transparent 70%)', filter:'blur(6px)', animation:'flame 1s infinite alternate', zIndex:-1 }} />}
-         {equippedSkin === 'neon' && <div style={{ position:'absolute', top: '-25%', left:'-25%', width:'150%', height:'150%', background:'radial-gradient(circle, rgba(216, 180, 254, 0.4), transparent)', boxShadow: '0 0 20px 5px #d8b4fe', borderRadius:'50%', animation:'fog 1.5s infinite linear', zIndex:-1 }} />}
-         {equippedSkin === 'crimson' && <div style={{ position:'absolute', top: '-20%', left:'-20%', width:'140%', height:'140%', border:'4px solid #ef4444', borderRadius:'50%', animation:'pulse 0.8s infinite', zIndex:-1, opacity: 0.7 }} />}
-         {equippedSkin === 'default' && <div style={{ position:'absolute', bottom: '-80%', left:'10%', width:'80%', height:'80%', background:'linear-gradient(to bottom, #60a5fa, transparent)', filter:'blur(4px)', opacity: 0.8, zIndex:-1 }} />}
-
-         <div style={{ width: '100%', height: '100%', borderRadius: activeSkin.shape, background: activeSkin.color, border: activeSkin.border || 'none' }} />
-         {hasShield && <div style={{ position: 'absolute', top: -12, left: -12, width: PLAYER_SIZE + 24, height: PLAYER_SIZE + 24, borderRadius: '50%', border: '2px solid #60a5fa', animation: 'spin 3s infinite linear', boxShadow: '0 0 15px #60a5fa' }} />}
-      </div>
-
-      {/* OBSTACLES */}
-      {hazards.map((h) => (
-        <div key={h.id} style={{ 
-            position: 'absolute', top: h.y, left: '50%', marginLeft: h.x - h.width / 2, 
-            width: h.width, height: h.height, 
-            background: 'linear-gradient(135deg, #cbd5e1 0%, #64748b 100%)',
-            borderRadius: '4px',
-            boxShadow: '0 5px 15px rgba(0,0,0,0.5)'
-        }}>
+      {/* HUD */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 80,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '90%',
+          maxWidth: '500px',
+          background: 'rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: '30px',
+          padding: '8px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          border: '1px solid rgba(255,255,255,0.15)',
+          zIndex: 50,
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        }}
+      >
+        <div onClick={(e) => { e.stopPropagation(); togglePause(); }} style={{ cursor: 'pointer', fontSize: '1.2rem', padding: '5px' }}>
+          {gameState === 'PAUSED' ? '▶️' : '⏸️'}
         </div>
-      ))}
-
-      {/* COINS */}
-      {coins.map((c) => (
-        <div key={c.id} style={{ position: 'absolute', top: c.y, left: '50%', marginLeft: c.x - 15, width: 30, height: 30, clipPath: c.type === 'coin' ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' : 'polygon(10% 0, 90% 0, 100% 60%, 50% 100%, 0 60%)', background: c.type === 'coin' ? 'linear-gradient(135deg, #facc15, #ca8a04)' : '#60a5fa', zIndex: 10, animation: 'spin 2s infinite linear' }} />
-      ))}
-
-      {/* --- MENUS --- */}
-      {gameState === 'START' && (
-        <div style={{ marginTop: 150, position: 'relative', zIndex: 70, padding: 20 }}>
-          <h1 style={{ fontSize: '4rem', fontWeight: '900', textShadow: '0 10px 20px rgba(0,0,0,0.5)', marginBottom: 10 }}>BOUNCE RUSH</h1>
-          <button onClick={startGame} style={{ background: '#facc15', border: 'none', padding: '20px 60px', fontSize: '2rem', fontWeight: 'bold', borderRadius: '50px', cursor: 'pointer', boxShadow: '0 0 30px #facc15', color: '#000', animation: 'pop 1s infinite alternate' }}>PLAY</button>
-          <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center', gap: 10 }}>
-              <button onClick={() => { setShopDetailItem(null); setGameState('SHOP'); }} style={{ padding: '10px 20px', borderRadius: '20px', border: '1px solid #fff', background: 'transparent', color: '#fff', cursor: 'pointer' }}>🛒 SKIN SHOP</button>
-              <button onClick={() => setGameState('MUSIC')} style={{ padding: '10px 20px', borderRadius: '20px', border: '1px solid #fff', background: 'transparent', color: '#fff', cursor: 'pointer' }}>🎵 MUSIC</button>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
+            <span style={{ fontSize: '0.7rem', opacity: 0.7, marginRight: 5 }}>SCORE</span>
+            <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{score}</span>
           </div>
+          <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.3)' }}></div>
+          <div style={{ textAlign: 'center' }}>
+            <span style={{ fontSize: '0.7rem', opacity: 0.7, marginRight: 5 }}>LEVEL</span>
+            <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: currentTheme.color }}>{level}</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ fontSize: '1.2rem' }}>💎</span>
+          <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#facc15' }}>{totalDiamonds + diamonds}</span>
+        </div>
+      </div>
+
+      {/* NEW: COMBO TEXT */}
+      {comboText && (
+        <div style={{ position: 'absolute', top: 250, left: '50%', transform: 'translateX(-50%)', zIndex: 60, animation: 'pop 0.2s ease' }}>
+            <h3 style={{ fontSize: '1.5rem', color: '#facc15', margin: 0, textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>{comboText}</h3>
         </div>
       )}
 
-      {/* SHOP SCREEN */}
-      {gameState === 'SHOP' && (
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.98)', zIndex: 80, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
-            {!shopDetailItem && (
-            <>
-                <h1 style={{ color: '#facc15', marginBottom: 10 }}>SKIN SHOP</h1>
-                <div style={{ marginBottom: 30, fontSize: '1.5rem', fontWeight: 'bold' }}>💎 {totalDiamonds}</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20, maxWidth: 600 }}>
-                    {SKINS.map((skin) => (
-                        <div key={skin.id} onClick={() => setShopDetailItem(skin)} style={{ background: 'rgba(255,255,255,0.05)', padding: 20, borderRadius: 15, border: equippedSkin === skin.id ? '2px solid #4ade80' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', width: 140, textAlign: 'center' }}>
-                            <div style={{ width: 40, height: 40, margin: '0 auto 15px auto', background: skin.color, borderRadius: skin.shape, border: skin.border || 'none' }} />
-                            <div style={{ fontWeight: 'bold' }}>{skin.name}</div>
-                            {ownedSkins.includes(skin.id) ? <div style={{ color: '#4ade80', fontSize: '0.8rem' }}>OWNED</div> : <div style={{ color: '#facc15' }}>💎 {skin.price}</div>}
-                        </div>
-                    ))}
-                </div>
-                <button onClick={() => setGameState('START')} style={{ marginTop: 40, padding: '15px 40px', background: '#38BDF8', border: 'none', borderRadius: 30, color: '#0f172a', fontWeight: 'bold', cursor: 'pointer' }}>BACK</button>
-            </>
-            )}
-            {shopDetailItem && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-                    <h2 style={{ fontSize: '2rem' }}>{shopDetailItem.name}</h2>
-                    <div style={{ width: 150, height: 150, background: shopDetailItem.color, borderRadius: shopDetailItem.shape, border: shopDetailItem.border || 'none', boxShadow: '0 0 30px rgba(255,255,255,0.2)' }} />
-                    <button onClick={() => selectSkin(shopDetailItem)} style={{ padding: '15px 50px', fontSize: '1.2rem', background: '#facc15', border: 'none', borderRadius: 10, color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>{ownedSkins.includes(shopDetailItem.id) ? 'EQUIP' : `BUY ${shopDetailItem.price}`} </button>
-                    <button onClick={() => setShopDetailItem(null)} style={{ marginTop: 10, background: 'transparent', border: '1px solid #777', color: '#ccc', borderRadius: 20, padding: '10px 30px', cursor: 'pointer' }}>BACK</button>
-                </div>
-            )}
+      {magicEffect && (
+        <div style={{ position: 'absolute', top: 180, left: '50%', transform: 'translateX(-50%)', width: '100%', animation: 'pop 0.5s ease', zIndex: 60 }}>
+          <h2 style={{ fontSize: '2rem', color: '#fff', margin: 0, textShadow: '0 0 20px rgba(255,255,255,0.5)' }}>{magicEffect}</h2>
+        </div>
+      )}
+
+      {/* PAUSE SCREEN */}
+      {gameState === 'PAUSED' && (
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 70, background: 'rgba(15, 23, 42, 0.95)', padding: '40px', borderRadius: 20, backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center', minWidth: '300px' }}>
+          <h1 style={{ margin: '0 0 20px 0' }}>PAUSED</h1>
+          <button onClick={() => togglePause()} style={{ padding: '12px 30px', fontSize: '1.2rem', borderRadius: '50px', background: '#38BDF8', border: 'none', color: '#0f172a', fontWeight: 'bold', cursor: 'pointer' }}>RESUME</button>
+          <div style={{ marginTop: 20, fontSize: '0.9rem', opacity: 0.7 }}>Current Score: {score}</div>
         </div>
       )}
 
       {/* MUSIC MENU */}
       {gameState === 'MUSIC' && (
-         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.95)', zIndex: 85, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.98)', zIndex: 85, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
              <h1 style={{ color: '#d8b4fe', marginBottom: 20 }}>DJ STATION</h1>
-             {MUSIC_TRACKS.map((track, i) => (
-                 <div key={i} onClick={() => changeTrack(i)} style={{ padding: 15, width: 250, margin: 5, background: currentTrackIndex === i ? '#d8b4fe' : 'rgba(255,255,255,0.1)', color: currentTrackIndex === i ? '#000' : '#fff', borderRadius: 10, cursor: 'pointer', textAlign:'center' }}>{track.name} {currentTrackIndex === i && isPlaying ? '🔊' : ''}</div>
-             ))}
-             <button onClick={() => setGameState('START')} style={{ marginTop: 30, padding: '12px 30px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: 20, cursor: 'pointer' }}>CLOSE</button>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '80%', maxWidth: '400px' }}>
+                 {MUSIC_TRACKS.map((track, i) => (
+                     <div key={i} onClick={() => changeTrack(i)} style={{ padding: 15, background: currentTrackIndex === i ? '#d8b4fe' : 'rgba(255,255,255,0.1)', color: currentTrackIndex === i ? '#000' : '#fff', borderRadius: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+                         <span>{track.name}</span>
+                         <span>{currentTrackIndex === i && isPlaying ? '🔊' : ''}</span>
+                     </div>
+                 ))}
+             </div>
+             <button onClick={() => setGameState('START')} style={{ marginTop: 30, padding: '12px 30px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: 20, cursor: 'pointer' }}>Close</button>
          </div>
       )}
 
-      {/* GAME OVER */}
-      {gameState === 'GAME_OVER' && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(15, 23, 42, 0.98)', padding: '40px', borderRadius: '25px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 60px rgba(0,0,0,0.6)', zIndex: 100, minWidth: '320px' }}>
-          <h2 style={{ color: '#ef4444', fontSize: '3rem', margin: 0 }}>CRASHED</h2>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '10px 0' }}>Score: {score}</div>
-          <button onClick={startGame} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', cursor: 'pointer', borderRadius: '15px', border: 'none', background: '#38BDF8', color: '#0f172a', fontWeight: 'bold' }}>TRY AGAIN</button>
-          <button onClick={() => setGameState('START')} style={{ width: '100%', padding: '15px', marginTop: 10, background: 'transparent', border: '1px solid #555', color: '#aaa', borderRadius: '15px', cursor: 'pointer' }}>MENU</button>
+      {/* SHOP SCREEN WITH DETAIL VIEW */}
+      {gameState === 'SHOP' && (
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.98)', zIndex: 80, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
+          
+          {/* VIEW 1: GRID */}
+          {!shopDetailItem && (
+            <>
+                <h1 style={{ color: '#facc15', marginBottom: 10 }}>SKIN SHOP</h1>
+                <div style={{ marginBottom: 30, fontSize: '1.5rem', fontWeight: 'bold' }}>💎 {totalDiamonds}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20, maxWidth: 600 }}>
+                    {SKINS.map((skin) => {
+                    const isOwned = ownedSkins.includes(skin.id);
+                    const isEquipped = equippedSkin === skin.id;
+                    return (
+                        <div key={skin.id} onClick={() => setShopDetailItem(skin)} style={{ background: 'rgba(255,255,255,0.05)', padding: 20, borderRadius: 15, border: isEquipped ? '2px solid #4ade80' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', width: 140, textAlign: 'center', opacity: !isOwned && totalDiamonds < skin.price ? 0.5 : 1, transition: 'all 0.2s' }}>
+                        <div style={{ width: 40, height: 40, margin: '0 auto 15px auto', background: skin.color, borderRadius: skin.shape, border: skin.border || 'none' }} />
+                        <div style={{ fontWeight: 'bold', marginBottom: 5 }}>{skin.name}</div>
+                        {isEquipped ? <div style={{ color: '#4ade80', fontSize: '0.9rem' }}>EQUIPPED</div> : isOwned ? <div style={{ color: '#fff', fontSize: '0.9rem' }}>OWNED</div> : <div style={{ color: '#facc15' }}>💎 {skin.price}</div>}
+                        </div>
+                    );
+                    })}
+                </div>
+                <button onClick={() => setGameState('START')} style={{ marginTop: 40, padding: '15px 40px', fontSize: '1.2rem', background: '#38BDF8', border: 'none', borderRadius: 30, color: '#0f172a', fontWeight: 'bold', cursor: 'pointer' }}>BACK TO MENU</button>
+            </>
+          )}
+
+          {/* VIEW 2: DETAILS */}
+          {shopDetailItem && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, animation: 'pop 0.2s' }}>
+                  <h2 style={{ fontSize: '2rem', color: '#fff' }}>{shopDetailItem.name}</h2>
+                  <div style={{ width: 150, height: 150, background: shopDetailItem.color, borderRadius: shopDetailItem.shape, border: shopDetailItem.border || 'none', boxShadow: '0 0 30px rgba(255,255,255,0.2)', margin: '20px 0' }} />
+                  
+                  {ownedSkins.includes(shopDetailItem.id) ? (
+                      equippedSkin === shopDetailItem.id ? (
+                          <button disabled style={{ padding: '15px 50px', fontSize: '1.2rem', background: '#4ade80', border: 'none', borderRadius: 10, color: '#004d00', fontWeight: 'bold', cursor: 'not-allowed' }}>EQUIPPED</button>
+                      ) : (
+                          <button onClick={() => selectSkin(shopDetailItem)} style={{ padding: '15px 50px', fontSize: '1.2rem', background: '#38BDF8', border: 'none', borderRadius: 10, color: '#002a3a', fontWeight: 'bold', cursor: 'pointer' }}>SELECT</button>
+                      )
+                  ) : (
+                      <button onClick={() => selectSkin(shopDetailItem)} style={{ padding: '15px 50px', fontSize: '1.2rem', background: '#facc15', border: 'none', borderRadius: 10, color: '#422006', fontWeight: 'bold', cursor: 'pointer' }}>BUY ({shopDetailItem.price} 💎)</button>
+                  )}
+
+                  <button onClick={() => setShopDetailItem(null)} style={{ marginTop: 10, padding: '10px 30px', background: 'transparent', border: '1px solid #777', color: '#ccc', borderRadius: 20, cursor: 'pointer' }}>GO BACK</button>
+              </div>
+          )}
         </div>
       )}
 
+      {/* START SCREEN */}
+      {gameState === 'START' && (
+        <div style={{ marginTop: 120, position: 'relative', zIndex: 60, padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h1 style={{ fontSize: '3.5rem', fontWeight: '900', textShadow: '0 5px 15px rgba(0,0,0,0.3)', marginBottom: 5, background: '-webkit-linear-gradient(#eee, #333)', WebkitBackgroundClip: 'text' }}>ORBITAL RUSH</h1>
+          <p style={{ fontSize: '1.1rem', opacity: 0.8, marginBottom: 30 }}>Avoid obstacles. Collect gems. Survive.</p>
+          <div style={{ display: 'flex', gap: 15, marginBottom: 40 }}>
+            <button onClick={() => startGame()} style={{ background: 'linear-gradient(45deg, #facc15, #fbbf24)', border: 'none', padding: '20px 60px', fontSize: '1.8rem', fontWeight: 'bold', borderRadius: '50px', cursor: 'pointer', boxShadow: '0 10px 30px rgba(251, 191, 36, 0.4)', color: '#0f172a', transition: 'transform 0.1s' }}>PLAY</button>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 30 }}>
+            <button onClick={() => { setShopDetailItem(null); setGameState('SHOP'); }} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>🛒 SKIN SHOP</button>
+            <button onClick={() => setGameState('MUSIC')} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>🎵 MUSIC</button>
+            <button onClick={() => setShowInstructions(!showInstructions)} style={{ padding: '10px 25px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}>❓ HELP</button>
+          </div>
+          {showInstructions && (
+            <div style={{ background: 'rgba(255,255,255,0.1)', padding: 20, borderRadius: 15, maxWidth: 400, fontSize: '0.9rem', lineHeight: '1.5', marginBottom: 20 }}>
+              <p><strong>🖱️ Desktop:</strong> Arrow keys to Move. <strong>Spacebar</strong> to Jump.</p>
+              <p><strong>📱 Mobile:</strong> Drag to Move. Tap screen to Jump.</p>
+              <p>💎 Collect Gems to buy skins and revive!</p>
+            </div>
+          )}
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#facc15', fontSize: '1rem' }}>🏆 LEADERBOARD</h3>
+            {topScores.length === 0 ? <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>No scores recorded yet</p> : topScores.map((s, i) => <div key={i} style={{ fontSize: '1rem', opacity: 0.9 }}>#{i + 1}: {s.addr} — {s.score}</div>)}
+          </div>
+        </div>
+      )}
+
+      {/* GAME OVER SCREEN */}
+      {gameState === 'GAME_OVER' && (
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(15, 23, 42, 0.98)', padding: '40px', pointerEvents: 'auto', borderRadius: '25px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 60px rgba(0,0,0,0.6)', zIndex: 100, minWidth: '320px' }}>
+          <h2 style={{ color: '#ef4444', fontSize: '3.5rem', margin: '0 0 5px 0' }}>CRASHED</h2>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: 5 }}>Score: {score}</div>
+          <div style={{ fontSize: '1rem', color: '#94a3b8', marginBottom: 25 }}>High Score: {topScores[0]?.score > score ? topScores[0].score : score}</div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
+            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: 10 }}>💎 +{lastRunGems} Gems</div>
+          </div>
+          {!revived && totalDiamonds >= REVIVE_COST ? (
+            <button onClick={reviveGame} style={{ display: 'block', width: '100%', padding: '15px', marginBottom: 15, fontSize: '1.1rem', fontWeight: 'bold', borderRadius: '15px', border: 'none', background: 'linear-gradient(90deg, #8b5cf6, #d946ef)', color: 'white', cursor: 'pointer', boxShadow: '0 5px 15px rgba(217, 70, 239, 0.4)' }}>💖 REVIVE ({REVIVE_COST} Gems)</button>
+          ) : !revived ? (
+            <div style={{ marginBottom: 20, opacity: 0.5, fontSize: '0.9rem' }}>(Earn {REVIVE_COST} Gems to unlock Revive)</div>
+          ) : (
+            <div style={{ marginBottom: 20, color: '#facc15', fontWeight: 'bold' }}>⚠️ Revive Used</div>
+          )}
+          <button style={{ width: '100%', padding: '15px', fontSize: '1.2rem', cursor: 'pointer', borderRadius: '15px', border: 'none', background: '#38BDF8', color: '#0f172a', fontWeight: 'bold' }} onClick={() => setGameState('START')}>MAIN MENU</button>
+        </div>
+      )}
+
+      {trail.map((t, i) => (
+        <div key={t.id} style={{ position: 'absolute', top: t.y, left: '50%', marginLeft: t.x - PLAYER_SIZE / 2, width: PLAYER_SIZE, height: PLAYER_SIZE, borderRadius: activeSkin.shape, background: hasShield ? '#60a5fa' : activeSkin.id === 'neon' ? 'transparent' : activeSkin.color, border: activeSkin.border || 'none', opacity: (i / 8) * 0.2, pointerEvents: 'none', transform: `scale(${i / 6})` }} />
+      ))}
+
+      {/* PLAYER RENDERED DIRECTLY VIA REF FOR PERFORMANCE */}
+      <div
+        ref={playerRef}
+        style={{
+          position: 'absolute',
+          top: 0, 
+          left: '50%',
+          marginLeft: -PLAYER_SIZE / 2,
+          width: PLAYER_SIZE,
+          height: PLAYER_SIZE,
+          zIndex: 20,
+          opacity: isGhost ? 0.5 : 1,
+          animation: isGhost ? 'flash 0.1s infinite' : 'none',
+          transform: `translate(0px, 300px)` 
+        }}
+      >
+         <div style={{ 
+             width: '100%', 
+             height: '100%', 
+             borderRadius: activeSkin.shape, 
+             background: activeSkin.color, 
+             border: activeSkin.border || 'none',
+             boxShadow: hasShield ? '0 0 30px #3b82f6' : '0 0 30px rgba(255,255,255,0.5)'
+         }} />
+         
+         {hasShield && (
+            <div style={{ 
+                position: 'absolute', 
+                top: -8, 
+                left: -8, 
+                width: PLAYER_SIZE + 16, 
+                height: PLAYER_SIZE + 16, 
+                borderRadius: '50%', 
+                border: '2px solid #60a5fa', 
+                opacity: 0.8, 
+                boxShadow: '0 0 20px #60a5fa', 
+                animation: 'spin 3s infinite linear' 
+            }} />
+         )}
+      </div>
+
+      {hazards.map((h) => (
+        <div key={h.id} style={{ position: 'absolute', top: h.y, left: '50%', marginLeft: h.x - h.width / 2, width: h.width, height: h.height, background: `linear-gradient(135deg, ${currentTheme.color} 0%, rgba(255,255,255,0.2) 100%)`, borderRadius: h.obstacleType === 'WALL' ? '4px' : h.obstacleType === 'SHARD' ? h.id.includes('L') ? '0 50% 50% 0' : '50% 0 0 50%' : '50%', border: h.obstacleType === 'SAW' ? `2px dashed ${currentTheme.color}` : 'none', boxShadow: `0 0 15px ${currentTheme.color}`, animation: h.obstacleType === 'SAW' ? 'spin 1s infinite linear' : 'none' }} />
+      ))}
+
+      {coins.map((c) => (
+        <div key={c.id} style={{ position: 'absolute', top: c.y, left: '50%', marginLeft: c.x - 15, width: 30, height: 30, clipPath: c.type === 'coin' ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' : 'polygon(10% 0, 90% 0, 100% 60%, 50% 100%, 0 60%)', background: c.type === 'coin' ? 'linear-gradient(135deg, #facc15, #ca8a04)' : 'linear-gradient(180deg, #60a5fa, #2563eb)', zIndex: 10, boxShadow: c.type === 'coin' ? '0 0 15px #facc15' : '0 0 20px #3b82f6', animation: 'float 2s infinite ease-in-out' }} />
+      ))}
+
       <style jsx global>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes pop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-5px); } 100% { transform: translateY(0px); } }
+        @keyframes pop { 0% { transform: translateX(-50%) scale(0); } 80% { transform: translateX(-50%) scale(1.1); } 100% { transform: translateX(-50%) scale(1); } }
         @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
-        @keyframes speed { 0% { transform: translateY(0); } 100% { transform: translateY(100px); } }
-        @keyframes flame { 0% { opacity: 0.8; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.9); } 100% { opacity: 0.8; transform: scale(1); } }
-        @keyframes fog { 0% { transform: translateY(0) scale(1); opacity: 0.6; } 100% { transform: translateY(20px) scale(1.2); opacity: 0; } }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.3); opacity: 0; } }
+        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
       `}</style>
     </div>
   );
@@ -671,7 +800,10 @@ function ScrollyGame() {
 export default function GamePage() {
   const network = WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
+  const wallets = useMemo(
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
+    []
+  );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
