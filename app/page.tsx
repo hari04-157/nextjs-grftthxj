@@ -776,7 +776,7 @@ function ScrollyGame() {
           
           {/* GLOBAL LEADERBOARD SECTION (FIREBASE CONNECTED) */}
           <div style={{ marginTop: 20, width: '100%', maxWidth: '400px', background: 'rgba(0,0,0,0.5)', borderRadius: '15px', padding: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ margin: '0 0 15px 0', color: '#facc15', fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '1px' }}>🏆 Global Top 5</h3>
+            <h3 style={{ margin: '0 0 15px 0', color: '#facc15', fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '1px' }}>🏆 Global Top 3</h3>
             {topScores.length === 0 ? <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Waiting for scores...</p> : topScores.map((s, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.05)' : 'none', fontSize: '1rem', opacity: i === 0 ? 1 : 0.8 }}>
                 <span style={{ color: i === 0 ? '#facc15' : i === 1 ? '#e2e8f0' : i === 2 ? '#b45309' : '#fff', fontWeight: i < 3 ? 'bold' : 'normal' }}>
