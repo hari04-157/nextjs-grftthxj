@@ -168,18 +168,29 @@ function ScrollyGame() {
       setEquippedSkin(savedEquip);
       
       // 2. LISTEN TO REAL FIREBASE DATABASE
-      const scoresRef = query(ref(database, 'scores'), orderByChild('score'), limitToLast(5));
+      // Updated to fetch last 50 scores so we can filter for unique players
+      const scoresRef = query(ref(database, 'scores'), orderByChild('score'), limitToLast(50));
       
       onValue(scoresRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-           // Firebase returns object of objects, convert to array
-           const parsedScores = Object.values(data) as { addr: string; score: number }[];
-           // Sort descending (Highest first) because Firebase sorts ascending
+           // FILTER: Only show the HIGHEST score for each player
+           const allScores = Object.values(data) as { addr: string; score: number }[];
+           const bestScoresMap = new Map();
+
+           allScores.forEach((s) => {
+             const existing = bestScoresMap.get(s.addr);
+             // If player not in map OR this score is higher than their saved score
+             if (!existing || s.score > existing.score) {
+               bestScoresMap.set(s.addr, s);
+             }
+           });
+
+           const parsedScores = Array.from(bestScoresMap.values());
+           // Sort descending (Highest first) and take top 5
            parsedScores.sort((a, b) => b.score - a.score);
-           setTopScores(parsedScores);
+           setTopScores(parsedScores.slice(0, 5));
         } else {
-           // Fallback if DB is empty
            setTopScores([]);
         }
       });
