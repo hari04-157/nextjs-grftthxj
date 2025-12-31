@@ -33,7 +33,6 @@ const WalletMultiButton = dynamic(
 const firebaseConfig = {
   apiKey: "AIzaSyDGhDdPagufkGaflK3EI7lhkkFXJM4jJj0",
   authDomain: "orbital-rush-db.firebaseapp.com",
-  // 👇 THIS WAS MISSING! 👇
   databaseURL: "https://orbital-rush-db-default-rtdb.firebaseio.com/",
   projectId: "orbital-rush-db",
   storageBucket: "orbital-rush-db.firebasestorage.app",
@@ -168,7 +167,6 @@ function ScrollyGame() {
       setEquippedSkin(savedEquip);
       
       // 2. LISTEN TO REAL FIREBASE DATABASE
-      // Updated to fetch last 50 scores so we can filter for unique players
       const scoresRef = query(ref(database, 'scores'), orderByChild('score'), limitToLast(50));
       
       onValue(scoresRef, (snapshot) => {
@@ -180,7 +178,6 @@ function ScrollyGame() {
 
            allScores.forEach((s) => {
              const existing = bestScoresMap.get(s.addr);
-             // If player not in map OR this score is higher than their saved score
              if (!existing || s.score > existing.score) {
                bestScoresMap.set(s.addr, s);
              }
@@ -207,7 +204,6 @@ function ScrollyGame() {
       : 'Guest';
 
     // 1. SAVE TO FIREBASE (REAL DB)
-    // Only save if score > 0 to prevent spam
     if (finalScore > 0) {
         push(ref(database, 'scores'), {
             addr: playerName,
@@ -601,7 +597,11 @@ function ScrollyGame() {
       }}
     >
       {/* WALLET BUTTON */}
-      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 60 }}>
+      <div 
+        style={{ position: 'absolute', top: 20, right: 20, zIndex: 1000 }} // FIX 1: HIGH Z-INDEX
+        onMouseDown={(e) => e.stopPropagation()} // FIX 2: STOP CLICK FROM STARTING GAME
+        onTouchStart={(e) => e.stopPropagation()} // FIX 3: STOP TOUCH FROM STARTING GAME
+      >
         <WalletMultiButton />
       </div>
 
