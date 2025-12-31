@@ -2,6 +2,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 
+// --- FIREBASE IMPORTS ---
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, push, onValue, query, orderByChild, limitToLast } from "firebase/database";
+
 // --- SOLANA IMPORTS ---
 import {
   ConnectionProvider,
@@ -17,12 +21,33 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import '@solana/wallet-adapter-react-ui/styles.css';
 
-// --- DYNAMIC IMPORT FOR WALLET BUTTON ---
 const WalletMultiButton = dynamic(
   async () =>
     (await import('@solana/wallet-adapter-react-ui')).WalletMultiButton,
   { ssr: false }
 );
+
+// ---------------------------------------------------------
+// ⚠️ PASTE YOUR FIREBASE CONFIG HERE ⚠️
+// ---------------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyDGhDdPagufkGaflK3EI7lhkkFXJM4jJj0",
+  authDomain: "orbital-rush-db.firebaseapp.com",
+  projectId: "orbital-rush-db",
+  storageBucket: "orbital-rush-db.firebasestorage.app",
+  messagingSenderId: "458701749674",
+  appId: "1:458701749674:web:bf3e9c6a85a23b8cd6bfd3",
+  measurementId: "G-KXBZX738M2"
+};
+
+// Initialize Firebase (Only once)
+let database: any;
+try {
+    const app = initializeApp(firebaseConfig);
+    database = getDatabase(app);
+} catch (e) {
+    console.error("Firebase init error", e);
+}
 
 // --- MAIN GAME LOGIC ---
 function ScrollyGame() {
@@ -53,8 +78,6 @@ function ScrollyGame() {
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // --- CONFIG (UPDATED FOR SAFETY) ---
-  // I have removed the file paths. These are now safe/silent.
   const MUSIC_TRACKS = [
     { name: "Default (Silent)", src: "" }, 
     { name: "No Music", src: "" },
@@ -131,11 +154,10 @@ function ScrollyGame() {
   const ROOF_LIMIT = 50;
   const HIT_MARGIN = 12;
 
-  // --- SAVE SYSTEM ---
+  // --- DATABASE & SAVE SYSTEM ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedScores = JSON.parse(localStorage.getItem('scrollyScoresSol') || '[]');
-      setTopScores(savedScores);
+      // 1. Load Local User Data (Gems/Skins)
       const savedGems = parseInt(localStorage.getItem('scrollyGems') || '0');
       setTotalDiamonds(savedGems);
       const savedSkins = JSON.parse(localStorage.getItem('scrollySkins') || '["default"]');
@@ -143,7 +165,24 @@ function ScrollyGame() {
       const savedEquip = localStorage.getItem('scrollyEquipped') || 'default';
       setEquippedSkin(savedEquip);
       
-      // Initialize Audio (Safely)
+      // 2. LISTEN TO REAL FIREBASE DATABASE
+      const scoresRef = query(ref(database, 'scores'), orderByChild('score'), limitToLast(5));
+      
+      onValue(scoresRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+           // Firebase returns object of objects, convert to array
+           const parsedScores = Object.values(data) as { addr: string; score: number }[];
+           // Sort descending (Highest first) because Firebase sorts ascending
+           parsedScores.sort((a, b) => b.score - a.score);
+           setTopScores(parsedScores);
+        } else {
+           // Fallback if DB is empty
+           setTopScores([]);
+        }
+      });
+
+      // Initialize Audio
       musicRef.current = new Audio(MUSIC_TRACKS[0].src);
       musicRef.current.loop = true;
     }
@@ -151,15 +190,20 @@ function ScrollyGame() {
 
   const saveProgress = (finalScore: number, runGems: number) => {
     const playerName = publicKey
-      ? publicKey.toString().slice(0, 4) + '..' + publicKey.toString().slice(-4)
+      ? publicKey.toString().slice(0, 4) + '...' + publicKey.toString().slice(-4)
       : 'Guest';
-    const newEntry = { addr: playerName, score: finalScore };
-    const newScores = [...topScores, newEntry]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
-    setTopScores(newScores);
-    localStorage.setItem('scrollyScoresSol', JSON.stringify(newScores));
 
+    // 1. SAVE TO FIREBASE (REAL DB)
+    // Only save if score > 0 to prevent spam
+    if (finalScore > 0) {
+        push(ref(database, 'scores'), {
+            addr: playerName,
+            score: finalScore,
+            timestamp: Date.now()
+        });
+    }
+
+    // 2. Save Gems Locally
     const newTotalGems = totalDiamonds + runGems;
     setTotalDiamonds(newTotalGems);
     localStorage.setItem('scrollyGems', newTotalGems.toString());
@@ -170,7 +214,6 @@ function ScrollyGame() {
          setEquippedSkin(skin.id);
          localStorage.setItem('scrollyEquipped', skin.id);
      } else {
-         // Attempt purchase
          if(totalDiamonds >= skin.price) {
              const newTotal = totalDiamonds - skin.price;
              setTotalDiamonds(newTotal);
@@ -403,7 +446,7 @@ function ScrollyGame() {
         });
     }
 
-    // --- ENHANCED WALL SPAWNER (HARDER) ---
+    // --- ENHANCED WALL SPAWNER ---
     setHazards((prev) => {
       let next = prev
         .map((h) => ({ ...h, y: h.y + speed.current }))
@@ -434,24 +477,15 @@ function ScrollyGame() {
         const last = next[next.length - 1];
         if (!last || last.y > 100) {
           
-          // 1. GAP WIDTH SHRINKING (Harder as levels go up)
           let gapWidth = 220 - (currentLevel * 8);
-          if (gapWidth < 100) gapWidth = 100; // Cap at 100px width
+          if (gapWidth < 100) gapWidth = 100; 
 
           const lastCenter = last ? last.gapCenter : 0;
-          
-          // 2. INCREASED ZIG-ZAG (More Jagged Walls)
-          // As level goes up, shiftIntensity increases
           const shiftIntensity = 60 + (currentLevel * 8); 
           let shift = (Math.random() * shiftIntensity * 2) - shiftIntensity;
-          
-          // 3. HARD TURN MECHANIC (Dogleg)
-          // 20% chance to have a significantly larger shift
           if (Math.random() > 0.8) shift *= 1.5;
 
           let newCenter = lastCenter + shift;
-          
-          // 4. BOUNDARY CHECK
           const maxCenter = (window.innerWidth / 2) - (gapWidth / 2) - 10;
           if (newCenter > maxCenter) newCenter = maxCenter;
           if (newCenter < -maxCenter) newCenter = -maxCenter;
@@ -501,7 +535,6 @@ function ScrollyGame() {
             setDiamonds((d) => d + 1);
             diamondVal.current += 1;
             
-            // --- COMBO LOGIC ---
             comboCount.current += 1;
             if (comboCount.current > 1) {
                 setComboText(`COMBO x${comboCount.current}!`);
@@ -600,7 +633,7 @@ function ScrollyGame() {
         </div>
       </div>
 
-      {/* NEW: COMBO TEXT */}
+      {/* COMBO TEXT */}
       {comboText && (
         <div style={{ position: 'absolute', top: 250, left: '50%', transform: 'translateX(-50%)', zIndex: 60, animation: 'pop 0.2s ease' }}>
             <h3 style={{ fontSize: '1.5rem', color: '#facc15', margin: 0, textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>{comboText}</h3>
@@ -638,11 +671,10 @@ function ScrollyGame() {
          </div>
       )}
 
-      {/* SHOP SCREEN WITH DETAIL VIEW */}
+      {/* SHOP SCREEN */}
       {gameState === 'SHOP' && (
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.98)', zIndex: 80, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
           
-          {/* VIEW 1: GRID */}
           {!shopDetailItem && (
             <>
                 <h1 style={{ color: '#facc15', marginBottom: 10 }}>SKIN SHOP</h1>
@@ -664,7 +696,6 @@ function ScrollyGame() {
             </>
           )}
 
-          {/* VIEW 2: DETAILS */}
           {shopDetailItem && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, animation: 'pop 0.2s' }}>
                   <h2 style={{ fontSize: '2rem', color: '#fff' }}>{shopDetailItem.name}</h2>
@@ -706,10 +737,20 @@ function ScrollyGame() {
               <p>💎 Collect Gems to buy skins and revive!</p>
             </div>
           )}
-          <div style={{ marginBottom: 20 }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#facc15', fontSize: '1rem' }}>🏆 LEADERBOARD</h3>
-            {topScores.length === 0 ? <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>No scores recorded yet</p> : topScores.map((s, i) => <div key={i} style={{ fontSize: '1rem', opacity: 0.9 }}>#{i + 1}: {s.addr} — {s.score}</div>)}
+          
+          {/* GLOBAL LEADERBOARD SECTION (FIREBASE CONNECTED) */}
+          <div style={{ marginTop: 20, width: '100%', maxWidth: '400px', background: 'rgba(0,0,0,0.5)', borderRadius: '15px', padding: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ margin: '0 0 15px 0', color: '#facc15', fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '1px' }}>🏆 Global Top 5</h3>
+            {topScores.length === 0 ? <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Waiting for scores...</p> : topScores.map((s, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.05)' : 'none', fontSize: '1rem', opacity: i === 0 ? 1 : 0.8 }}>
+                <span style={{ color: i === 0 ? '#facc15' : i === 1 ? '#e2e8f0' : i === 2 ? '#b45309' : '#fff', fontWeight: i < 3 ? 'bold' : 'normal' }}>
+                  #{i + 1} {s.addr}
+                </span>
+                <span style={{ fontWeight: 'bold' }}>{s.score}</span>
+              </div>
+            ))}
           </div>
+
         </div>
       )}
 
@@ -758,8 +799,8 @@ function ScrollyGame() {
              height: '100%', 
              borderRadius: activeSkin.shape, 
              background: activeSkin.color, 
-             border: activeSkin.border || 'none',
-             boxShadow: hasShield ? '0 0 30px #3b82f6' : '0 0 30px rgba(255,255,255,0.5)'
+             border: activeSkin.border || 'none', 
+             boxShadow: hasShield ? '0 0 30px #3b82f6' : '0 0 30px rgba(255,255,255,0.5)' 
          }} />
          
          {hasShield && (
