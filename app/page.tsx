@@ -33,6 +33,8 @@ const WalletMultiButton = dynamic(
 const firebaseConfig = {
   apiKey: "AIzaSyDGhDdPagufkGaflK3EI7lhkkFXJM4jJj0",
   authDomain: "orbital-rush-db.firebaseapp.com",
+  // 👇 THIS WAS MISSING! 👇
+  databaseURL: "https://orbital-rush-db-default-rtdb.firebaseio.com/",
   projectId: "orbital-rush-db",
   storageBucket: "orbital-rush-db.firebasestorage.app",
   messagingSenderId: "458701749674",
