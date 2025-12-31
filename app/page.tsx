@@ -53,10 +53,11 @@ function ScrollyGame() {
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // --- CONFIG ---
+  // --- CONFIG (UPDATED FOR SAFETY) ---
+  // I have removed the file paths. These are now safe/silent.
   const MUSIC_TRACKS = [
-    { name: "Our Song", src: "/our-song.wav" },
-    { name: "Monkey Business", src: "/monkey.aac" },
+    { name: "Default (Silent)", src: "" }, 
+    { name: "No Music", src: "" },
     { name: "Silence", src: "" }
   ];
 
@@ -142,7 +143,7 @@ function ScrollyGame() {
       const savedEquip = localStorage.getItem('scrollyEquipped') || 'default';
       setEquippedSkin(savedEquip);
       
-      // Initialize Audio
+      // Initialize Audio (Safely)
       musicRef.current = new Audio(MUSIC_TRACKS[0].src);
       musicRef.current.loop = true;
     }
