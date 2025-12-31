@@ -240,6 +240,29 @@ function ScrollyGame() {
      }
   };
 
+  // --- SHARE FUNCTION ---
+  const handleShare = async () => {
+    const shareText = `🚀 I scored ${score} in Orbital Rush! Can you beat me? Play now: https://orbital-rush.vercel.app`;
+    
+    if (navigator.share) {
+        // Mobile Native Share
+        try {
+            await navigator.share({
+                title: 'Orbital Rush Challenge',
+                text: shareText,
+                url: 'https://orbital-rush.vercel.app'
+            });
+        } catch (err) {
+            console.log('Share canceled');
+        }
+    } else {
+        // Desktop Clipboard Fallback
+        navigator.clipboard.writeText(shareText);
+        setMagicEffect('LINK COPIED!');
+        setTimeout(() => setMagicEffect(''), 2000);
+    }
+  };
+
   // --- AUDIO LOGIC ---
   const changeTrack = (index: number) => {
       setCurrentTrackIndex(index);
@@ -596,11 +619,11 @@ function ScrollyGame() {
         animation: shake ? 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both' : 'none',
       }}
     >
-      {/* WALLET BUTTON */}
+      {/* WALLET BUTTON (Z-INDEX FIX APPLIED) */}
       <div 
-        style={{ position: 'absolute', top: 20, right: 20, zIndex: 1000 }} // FIX 1: HIGH Z-INDEX
-        onMouseDown={(e) => e.stopPropagation()} // FIX 2: STOP CLICK FROM STARTING GAME
-        onTouchStart={(e) => e.stopPropagation()} // FIX 3: STOP TOUCH FROM STARTING GAME
+        style={{ position: 'absolute', top: 20, right: 20, zIndex: 1000 }} 
+        onMouseDown={(e) => e.stopPropagation()} 
+        onTouchStart={(e) => e.stopPropagation()} 
       >
         <WalletMultiButton />
       </div>
@@ -783,6 +806,10 @@ function ScrollyGame() {
           ) : (
             <div style={{ marginBottom: 20, color: '#facc15', fontWeight: 'bold' }}>⚠️ Revive Used</div>
           )}
+
+          {/* SHARE BUTTON */}
+          <button onClick={handleShare} style={{ display: 'block', width: '100%', padding: '15px', marginBottom: 15, fontSize: '1.2rem', cursor: 'pointer', borderRadius: '15px', border: 'none', background: '#4ade80', color: '#064e3b', fontWeight: 'bold' }}>🔗 SHARE CHALLENGE</button>
+
           <button style={{ width: '100%', padding: '15px', fontSize: '1.2rem', cursor: 'pointer', borderRadius: '15px', border: 'none', background: '#38BDF8', color: '#0f172a', fontWeight: 'bold' }} onClick={() => setGameState('START')}>MAIN MENU</button>
         </div>
       )}
